@@ -156,6 +156,8 @@ class GoogleMapsScraper:
                         link_wa = get_whatsapp_link(telefone)
                         auditoria = await auditar_url(website)
 
+                        maps_url = page.url if "maps" in page.url else f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote_plus(f'{nome}, {endereco or bairro}')}"
+
                         lead = {
                             "nome": nome,
                             "nicho": nicho,
@@ -163,6 +165,7 @@ class GoogleMapsScraper:
                             "endereco": endereco,
                             "telefone": telefone,
                             "link_whatsapp": link_wa,
+                            "maps_url": maps_url,
                             "nota": detalhes.get("nota"),
                             "qtd_reviews": detalhes.get("qtd_reviews"),
                             "website_original": website,
@@ -213,6 +216,9 @@ class GoogleMapsScraper:
                         website = _limpar_url_google(detalhes.get("website", ""))
                         link_wa = get_whatsapp_link(telefone)
 
+                        # Determina URL canônica da ficha no Google Maps
+                        maps_url = href if href.startswith("http") else (page.url if "/maps/place/" in page.url else f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote_plus(f'{nome}, {endereco or bairro}')}")
+
                         # Executa auditoria da URL
                         auditoria = await auditar_url(website)
 
@@ -223,6 +229,7 @@ class GoogleMapsScraper:
                             "endereco": endereco,
                             "telefone": telefone,
                             "link_whatsapp": link_wa,
+                            "maps_url": maps_url,
                             "nota": detalhes.get("nota"),
                             "qtd_reviews": detalhes.get("qtd_reviews"),
                             "website_original": website,

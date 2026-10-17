@@ -132,7 +132,8 @@ class NotionService:
                     }
                 },
                 "Pitch WhatsApp": {"rich_text": {}},
-                "Demo HTML": {"rich_text": {}}
+                "Demo HTML": {"rich_text": {}},
+                "Link Maps": {"url": {}}
             }
 
             missing_properties = {}
@@ -241,6 +242,11 @@ class NotionService:
         # 12. Demo HTML (rich_text)
         if "demo_html" in data and data["demo_html"]:
             properties["Demo HTML"] = {"rich_text": _chunk_rich_text(str(data["demo_html"]))}
+
+        # 13. Link Maps (url)
+        maps_link = data.get("maps_url") or data.get("link_maps")
+        if maps_link:
+            properties["Link Maps"] = {"url": str(maps_link).strip()}
 
         return properties
 
@@ -487,6 +493,9 @@ class NotionService:
         # Demo HTML (rich_text)
         demo_html = _extract_plain_text(props.get("Demo HTML", {}).get("rich_text", []))
 
+        # Link Maps (url)
+        maps_url = props.get("Link Maps", {}).get("url") or ""
+
         return {
             "id": page_id,
             "nome": nome,
@@ -494,6 +503,7 @@ class NotionService:
             "bairro": bairro,
             "telefone": telefone,
             "link_whatsapp": link_whatsapp,
+            "maps_url": maps_url,
             "nota": nota,
             "qtd_reviews": qtd_reviews,
             "website_original": website_original,
@@ -502,5 +512,6 @@ class NotionService:
             "pitch_whatsapp": pitch_whatsapp,
             "demo_html": demo_html,
             "has_demo": bool(demo_html),
+            "synced_notion": True,
             "notion_url": page.get("url", f"https://notion.so/{page_id.replace('-', '')}")
         }

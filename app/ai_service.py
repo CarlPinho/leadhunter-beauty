@@ -6,14 +6,28 @@ LeadHunter Beauty.
 import os
 import re
 import logging
-from typing import Optional
-from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+from typing import Optional, Any
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
 
 logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPT_ANTI_ALUCINACAO = (
+    "Regra de Ouro Anti-Alucinação: Nunca adicione tratamentos médicos invasivos, "
+    "preços específicos em Real ou dados não fornecidos pelo cliente. "
+    "Trabalhe com o que foi extraído e posicione o WhatsApp como a ponte de orçamento."
+)
 
 
 def _clean_markdown_code(content: str) -> str:
@@ -31,10 +45,11 @@ def _clean_markdown_code(content: str) -> str:
 class AIService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self._client: Optional[genai.Client] = None
+        self._client: Optional[Any] = None
+        self.system_prompt: str = SYSTEM_PROMPT_ANTI_ALUCINACAO
 
     @property
-    def client(self) -> genai.Client:
+    def client(self) -> Any:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY não foi configurada no arquivo .env")
         if not self._client:
@@ -44,50 +59,61 @@ class AIService:
     def is_configured(self) -> bool:
         return bool(self.api_key and "xxx" not in self.api_key)
 
-    def gerar_pitch(self, lead: dict) -> str:
+    def gerar_copy_whatsapp(self, lead: dict) -> str:
         """
-        Cria uma abordagem consultiva de alta conversão para WhatsApp.
-        - Tipo A: Foca na perda de tráfego do Google e falta de autoridade/conversão sem site próprio.
-        - Tipo B: Aponta a fuga de clientes por causa do site atual obsoleto/não responsivo.
+        Gera uma abordagem curta, humana e de alta conversão para WhatsApp (máx 3-4 linhas)
+        com 3 passos cirúrgicos e script de follow-up para 24h.
         """
-        nome = lead.get("nome", "Espaço de Beleza")
+        nome = lead.get("nome", "Espaço")
         nicho = lead.get("nicho", "Estética e Beleza")
         bairro = lead.get("bairro", "")
         nota = lead.get("nota", "5.0")
         reviews = lead.get("qtd_reviews", "várias")
         classificacao = lead.get("classificacao", "Tipo A (Sem Site)")
         site = lead.get("website_original", "")
+        is_tipo_b = "Tipo B" in str(classificacao) or bool(site)
 
-        prompt = f"""
-Você é um especialista em prospecção B2B consultiva e vendas de desenvolvimento web para o mercado de alto padrão de beleza e estética (clínicas de estética, micropigmentação, extensão de cílios, salões de beleza).
+        dor_orientacao = (
+            'Dor para Tipo A (Sem site): "Vi que vocês têm excelentes avaliações no Google, mas ainda não têm uma página própria para receber os agendamentos direto no WhatsApp, dependendo só do Insta."'
+            if not is_tipo_b else
+            'Dor para Tipo B (Site obsoleto/lento): "Vi que vocês recebem clientes pelo Google, mas o site atual tem lentidão/atrito no celular, o que faz muita gente desistir antes de chamar no Zap."'
+        )
 
-Crie uma mensagem persuasiva, elegante e consultiva para ser enviada pelo WhatsApp para a proprietária/gerente do seguinte estabelecimento:
+        prompt = f"""Você é um especialista em vendas consultivas e prospecção direta via WhatsApp para negócios locais.
+{self.system_prompt}
+
+Crie uma mensagem curta de prospecção e um follow-up de 24h para o estabelecimento abaixo:
 - Nome: {nome}
-- Nicho de atuação: {nicho}
+- Nicho: {nicho}
 - Localização/Bairro: {bairro}
-- Avaliação no Google Maps: {nota} estrelas ({reviews} avaliações)
-- Classificação do Lead: {classificacao}
-- Link atual: {site if site else "Sem site próprio (apenas link de redes sociais ou sem link)"}
+- Avaliação Google Maps: {nota} estrelas ({reviews} avaliações)
+- Classificação: {classificacao}
+- Link atual: {site if site else "Sem site próprio"}
 
-DIRETRIZES DA MENSAGEM:
-1. Tom: Profissional, caloroso, elogioso e consultivo (nada de parecer spam ou vendedor desesperado).
-2. Quebra de padrão: Comece elogiando a excelente reputação do espaço no Google Maps ({nota} estrelas e {reviews} avaliações).
-3. Diagnóstico pontual:
-   - Se for 'Tipo A (Sem Site)': Destaque sutilmente que muitas clientes que encontram o espaço no Google acabam não agendando porque falta uma página institucional rápida com fotos dos procedimentos e botão direto para o WhatsApp, perdendo clientes para concorrentes com presença digital mais estruturada.
-   - Se for 'Tipo B (Site Obsoleto)': Pontue de forma construtiva e respeitosa que o site atual não valoriza o nível de sofisticação do atendimento presencial (por não ser totalmente fluido no celular ou visualmente desatualizado para o público A/B), gerando desconfiança em clientes novas.
-4. Gancho irresistível: Informe que, como cortesia e demonstração de valor, você já preparou um modelo visual exclusivo (Landing Page moderna de luxo) para o {nome}.
-5. Call to Action (CTA): Uma pergunta leve e de baixo atrito, convidando a ver o link da prévia rápida de 1 minuto sem nenhum compromisso.
-6. Formatação: Use quebras de parágrafos curtos adequados para leitura no WhatsApp e emojis pontuais com elegância (✨, 🌸, 📲).
-7. NÃO use marcadores como '[Seu Nome]' ou '[Empresa]' — termine de forma fluida para assinatura imediata.
+DIRETRIZES ESTRITAS (SEM "TEXTÃO", MÁXIMA CONVERSÃO):
+1. A mensagem de primeiro contato DEVE ser curta, humana, sem jargões corporativos e direto ao ponto (máximo de 3 a 4 linhas no WhatsApp).
+2. Estrutura obrigatória de 3 passos na mensagem principal:
+   Passo 1: Quebra de padrão rápida e elogio sincero à reputação local no Maps (mencionando o nome e as avaliações no Google).
+   Passo 2: Apontamento cirúrgico da dor:
+     {dor_orientacao}
+   Passo 3: Chamada para ação de baixo atrito (apenas permissão):
+     "Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?"
+3. Follow-up de 24h:
+   - Uma mensagem rápida, simpática e leve de 1 ou 2 linhas caso o lead não responda em 24h (ex: "Opa {nome}, tudo bem? Imagino que a rotina aí esteja corrida! Conseguiu ver a mensagem anterior sobre a prévia de 1 min?").
 
-Retorne EXCLUSIVAMENTE o texto final da mensagem para WhatsApp.
+FORMATO DO RETORNO:
+Retorne no seguinte formato exato (sem explicações adicionais fora dele):
+[Mensagem Principal de 3 a 4 linhas]
+
+---
+⏰ *Follow-up (24h se não responder):*
+[Texto do follow-up]
 """
 
         if not self.is_configured():
             return self._gerar_pitch_fallback(lead)
 
         try:
-            # Tenta modelos recentes disponíveis no Gemini SDK
             models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
             last_error = None
             for model_name in models_to_try:
@@ -101,10 +127,168 @@ Retorne EXCLUSIVAMENTE o texto final da mensagem para WhatsApp.
                 except Exception as ex:
                     last_error = ex
                     continue
-            raise last_error or RuntimeError("Não foi possível gerar pitch com nenhum modelo.")
+            raise last_error or RuntimeError("Não foi possível gerar copy com nenhum modelo.")
         except Exception as e:
-            logger.error(f"Erro ao gerar pitch com Gemini: {e}")
+            logger.error(f"Erro ao gerar copy do WhatsApp com Gemini: {e}")
             return self._gerar_pitch_fallback(lead)
+
+    def gerar_pitch(self, lead: dict) -> str:
+        """Alias para manter compatibilidade com rotas de API existentes."""
+        return self.gerar_copy_whatsapp(lead)
+
+    def gerar_prompt_ai_studio(self, lead: dict, conteudo_extraido: Optional[dict] = None) -> str:
+        """
+        Gera um Super Prompt hiperpersonalizado pronto em formato Markdown para o usuário
+        colar diretamente no Google AI Studio (Build with Gemini) e obter uma Landing Page de alta conversão,
+        respeitando estrita fidelidade aos dados reais e proibindo preços/valores fictícios.
+        """
+        nome = lead.get("nome", "Espaço de Atendimento")
+        nicho = lead.get("nicho", "Estética e Beleza")
+        bairro = lead.get("bairro") or "São Paulo"
+        endereco = lead.get("endereco") or ""
+        nota = lead.get("nota") or "5.0"
+        reviews = lead.get("qtd_reviews") or "diversas"
+        classificacao = lead.get("classificacao", "Tipo A (Sem Site)")
+        tel_limpo = re.sub(r"\D", "", lead.get("telefone") or "")
+        whatsapp_link = lead.get("link_whatsapp") or (f"https://wa.me/55{tel_limpo}" if tel_limpo else "https://wa.me/5511999999999")
+        website = lead.get("website_original", "")
+
+        conteudo = conteudo_extraido or lead.get("conteudo_extraido") or {}
+        is_tipo_b = "Tipo B" in str(classificacao) or bool(website and conteudo.get("tem_conteudo"))
+
+        # Checagem rigorosa de preços nos dados extraídos e no site
+        textos_totais = " ".join([
+            str(conteudo.get("titulo") or ""),
+            " ".join(conteudo.get("cabecalhos") or []),
+            " ".join(conteudo.get("resumo_apresentacao") or []),
+            " ".join(conteudo.get("servicos_detectados") or []),
+            " ".join(conteudo.get("diferenciais_detectados") or [])
+        ])
+        tem_precos_reais = bool(conteudo.get("tem_precos")) or bool(re.search(r"R\$\s*\d+|\b\d+[,.]\d{2}\b", textos_totais))
+
+        # 1. Diretriz estrita de preços: PROIBIDO inventar preços fictícios se não houver dados comprovados
+        if not tem_precos_reais:
+            diretriz_precos = (
+                "⚠️ PROIBIDO INVENTAR PREÇOS OU VALORES FICTÍCIOS:\n"
+                "O site legado NÃO informa preços (como no caso do Studio Haara Beleza e salões renomados).\n"
+                "- NÃO invente valores em R$ ou tabelas de preços fictícias. Utilize botões de CTA como 'Consultar Tabela / Agendar via WhatsApp' ou 'Solicitar Orçamento Personalizado'.\n"
+                "- Posicione o WhatsApp como a ponte de orçamento para todos os procedimentos."
+            )
+        else:
+            diretriz_precos = (
+                "⚠️ DIRETRIZ DE PREÇOS REAIS:\n"
+                "- Utilize apenas os valores expressamente encontrados nos dados extraídos.\n"
+                "- Caso algum serviço não tenha preço divulgado: NÃO invente valores em R$ ou tabelas de preços fictícias. Utilize botões de CTA como 'Consultar Tabela / Agendar via WhatsApp' ou 'Solicitar Orçamento Personalizado'."
+            )
+
+        # 2. Diretriz de fidelidade aos textos e multi-serviços
+        diretriz_servicos_fidelidade = (
+            "🎯 FIDELIDADE AOS TEXTOS E NÚMEROS REAIS EXTRAÍDOS:\n"
+            "- Destaque os dados reais que a cliente já colocou no site legado (ex: tempo de mercado, quantidade de clientes atendidos, diferenciais de estacionamento, endereço real).\n"
+            "- Onde faltar informação detalhada de serviços, instrua a interface a criar categorias genéricas e elegantes de multi-serviços (ex: Cabelo & Penteados, Estética Facial, Manicure & Pedicure) convidando o cliente a consultar os valores no WhatsApp.\n"
+            "- Nunca adicione tratamentos médicos invasivos não informados pelo cliente."
+        )
+
+        # Seleção de paleta visual recomendada por nicho
+        nicho_lower = (nicho or "").lower()
+        if any(w in nicho_lower for w in ["cilios", "cílios", "sobrancelha", "estética", "estetica", "beleza", "salao", "salão", "manicure", "unhas", "spa", "clinica", "clínica"]):
+            paleta_descricao = "Clean Luxury / Quiet Luxury (tons neutros quentes como alabastro/areia, champanhe, rosé suave, detalhes em dourado acetinado e preto carvão/marrom nobre para contraste)"
+            exemplo_servicos = "Cabelo & Penteados, Estética Facial, Manicure & Pedicure, Extensão de Cílios e Sobrancelhas"
+        elif any(w in nicho_lower for w in ["barbearia", "barber", "barba"]):
+            paleta_descricao = "Dark Modern / Vintage Industrial de Alto Padrão (tons de preto fosco, grafite, acabamento couro e detalhes em âmbar/dourado escovado)"
+            exemplo_servicos = "Corte & Barboterapia, Alinhamento de Fios, Cuidados com a Barba e Acabamento Clássico"
+        elif any(w in nicho_lower for w in ["hamburguer", "burger", "pizza", "sushi", "restaurante", "doceria", "confeitaria", "cafeteria", "cafe", "café", "gastronomia"]):
+            paleta_descricao = "Gastronomia Premium & Apelo Visual Imersivo (tons apetitosos contemporâneos como terracota, vermelho rubi, âmbar tostado ou minimalismo elegante com alto contraste)"
+            exemplo_servicos = "Combos Especiais da Casa, Pratos Principais, Entradas Artesanais e Bebidas Selecionadas"
+        else:
+            paleta_descricao = "Moderna, Premium e de Alta Autoridade (tons neutros contemporâneos com acento refinado e vibrante para os botões de ação e conversão)"
+            exemplo_servicos = "Serviços Principais Especializados, Consultoria Individualizada e Atendimento com Hora Marcada"
+
+        if is_tipo_b:
+            linhas_conteudo = []
+            if conteudo.get("titulo"):
+                linhas_conteudo.append(f"  - Título oficial detectado: \"{conteudo['titulo']}\"")
+            if conteudo.get("cabecalhos"):
+                linhas_conteudo.append(f"  - Cabeçalhos e slogans reais: {', '.join(conteudo['cabecalhos'][:6])}")
+            if conteudo.get("resumo_apresentacao"):
+                apresentacao_str = ' | '.join(conteudo['resumo_apresentacao'][:3])
+                linhas_conteudo.append(f"  - Apresentação / História da marca: \"{apresentacao_str}\"")
+            
+            # Diferenciais reais declarados (tempo de mercado, clientes, estacionamento, etc.)
+            diferenciais = conteudo.get("diferenciais_detectados") or []
+            if diferenciais:
+                linhas_conteudo.append(f"  - Diferenciais reais declarados pelo estabelecimento: {'; '.join(diferenciais[:3])}")
+            if endereco:
+                linhas_conteudo.append(f"  - Endereço físico real: {endereco}")
+            
+            if conteudo.get("servicos_detectados"):
+                linhas_conteudo.append(f"  - Serviços e procedimentos detectados: {', '.join(conteudo['servicos_detectados'][:10])}")
+
+            detalhes_site = "\n".join(linhas_conteudo) if linhas_conteudo else f"  - Website original: {website} (site com carregamento lento, layout desatualizado ou não responsivo)"
+
+            secao_contexto_site = f"""3. DIAGNÓSTICO E CONTEÚDO REAL EXTRAÍDO (LEAD TIPO B - SITE LEGADO):
+O cliente possui um site legado em ({website}) com os seguintes dados e diferenciais reais extraídos pelo nosso auditor:
+{detalhes_site}
+
+👉 INSTRUÇÃO DE MODERNIZAÇÃO & FIDELIDADE AOS DADOS:
+O cliente possui um site legado com os dados reais acima. Modernize completamente esta estrutura:
+- Destaque com fidelidade os dados reais que a cliente já colocou no site legado (ex: tempo de mercado, quantidade de clientes atendidos, diferenciais de estacionamento, endereço real).
+- Reescreva os textos com copy magnética e estética moderna de alto padrão, preservando a identidade construída pela proprietária.
+{diretriz_precos}
+{diretriz_servicos_fidelidade}"""
+        else:
+            secao_contexto_site = f"""3. DIAGNÓSTICO E OPORTUNIDADE (LEAD TIPO A - SEM SITE PRÓPRIO):
+O cliente ainda não tem site e depende apenas de redes sociais (Instagram/WhatsApp).
+- Crie a estrutura ideal de alta conversão para o nicho de {nicho} com serviços padrão de alta demanda ({exemplo_servicos}).
+{diretriz_precos}
+{diretriz_servicos_fidelidade}"""
+
+        prompt = f"""Atue como UI/UX Designer Sênior e Especialista em Front-end voltado para Alta Conversão no nicho de {nicho}.
+
+Desenvolva o código HTML5 completo e funcional de uma Landing Page de altíssimo impacto, estética refinada e foco em conversão para o seguinte negócio:
+
+🔒 {SYSTEM_PROMPT_ANTI_ALUCINACAO}
+
+1. CONTEXTO DO NEGÓCIO:
+- Nome do Estabelecimento: {nome}
+- Nicho / Especialidade: {nicho}
+- Localização: {bairro}, São Paulo - SP{f' (Endereço Real: {endereco})' if endereco else ''}
+- Reputação Google Maps: {nota} estrelas com {reviews} avaliações reais
+- Link WhatsApp Oficial para Agendamentos e Orçamentos: {whatsapp_link}
+
+2. DIRETRIZES DE PREÇOS E SERVIÇOS (ANTI-ALUCINAÇÃO):
+{diretriz_precos}
+
+{diretriz_servicos_fidelidade}
+
+{secao_contexto_site}
+
+4. DIRETRIZES DE DESIGN DO PROMPT:
+- Arquitetura: HTML5 em arquivo único semântico (começando em <!DOCTYPE html> e finalizando em </html>).
+- Framework CSS: Tailwind CSS via CDN (<script src="https://cdn.tailwindcss.com"></script>).
+- Tipografia: Adicione Google Fonts refinadas no <head> (ex: 'Playfair Display' ou 'Cormorant Garamond' para títulos e 'Plus Jakarta Sans' ou 'Inter' para textos de leitura).
+- Paleta de Cores: {paleta_descricao}.
+- Responsividade: Layout 100% Mobile-First (impecável em smartphones, tablets e desktop).
+- Ícones: Utilize SVGs inline modernos e elegantes.
+- Imagens: Utilize URLs diretas e funcionais do Unsplash com fotos profissionais de alta qualidade adequadas para {nicho}.
+
+5. SEÇÕES OBRIGATÓRIAS (ESTRUTURA DE ALTA CONVERSÃO):
+a) Header com botão de WhatsApp: Logotipo elegante com o nome "{nome}", navegação com rolagem suave e botão de CTA destacado para agendamento rápido via WhatsApp.
+b) Hero section de alto impacto: Proposta de valor irresistível para o nicho ({nicho}), selo de prova social (⭐ {nota} estrelas com {reviews} avaliações no Google), foto expressiva do Unsplash e botão principal de conversão ("Agendar Horário / Consultar Valores").
+c) Cards de serviços / cardápio:
+   - Vitrine moderna destacando os procedimentos/categorias principais.
+   - ⚠️ SEM PREÇOS FICTÍCIOS: Como o estabelecimento não divulgou tabela aberta, utilize botões de CTA como "Consultar Tabela / Agendar via WhatsApp" ou "Solicitar Orçamento Personalizado".
+   - Botão de agendamento por serviço direcionando para {whatsapp_link}.
+d) Quebra de objeções / Diferenciais Reais: Destaque os dados reais que a cliente já colocou no site legado (ex: tempo de mercado, quantidade de clientes atendidos, diferenciais de estacionamento/valet, biossegurança rigorosa e pontualidade com hora marcada em {bairro}).
+e) Prova social: Avaliações com 5 estrelas e depoimentos sinceros de clientes fiéis baseados na reputação do Google Maps ({nota} estrelas).
+f) FAQ: 4 a 5 perguntas frequentes respondidas de forma concisa, orientando dúvidas de valores e agendamentos diretamente para o WhatsApp.
+g) Rodapé com localização: Endereço real ({endereco if endereco else f'{bairro}, São Paulo - SP'}), horário de atendimento com hora marcada e créditos.
+h) Botão flutuante de WhatsApp: Fixo no canto inferior direito, com animação pulsante suave direcionando para: {whatsapp_link}.
+
+ENTREGA ESPERADA:
+Retorne EXCLUSIVAMENTE o código HTML5 completo e pronto para publicação em um único arquivo, sem explicações em texto fora do bloco de código."""
+
+        return prompt
 
     def gerar_landing_page(self, lead: dict) -> str:
         """
@@ -119,6 +303,8 @@ Retorne EXCLUSIVAMENTE o texto final da mensagem para WhatsApp.
 
         prompt = f"""
 Você é um Designer UI/UX e Desenvolvedor Front-end sênior especializado no mercado de beleza, estética e bem-estar de alto padrão (Luxury Beauty & Wellness).
+
+{self.system_prompt}
 
 Desenvolva o código HTML5 completo e funcional de uma Landing Page de altíssima conversão e estética refinada para o seguinte negócio:
 - Nome do Espaço: {nome}
@@ -136,7 +322,7 @@ ESPECIFICAÇÕES TÉCNICAS E DE DESIGN OBRIGATÓRIAS:
    - Header fixo/sticky com logotipo tipográfico refinado, navegação e botão 'Agendar no WhatsApp'.
    - Hero Section: Headline com proposta de valor única para o nicho ({nicho}), selo visual de reputação (⭐ {nota} com +{reviews} clientes satisfeitas), foto representativa de alta qualidade (use URLs do Unsplash voltadas para estética/beleza/skincare) e CTA principal destacado.
    - Diferenciais Exclusivos: 3 a 4 pilares (Atendimento Personalizado, Produtos Importados de Alta Performance, Biossegurança e Conforto VIP).
-   - Menu de Procedimentos / Serviços: Cards elegantes com os principais tratamentos do nicho {nicho}, descrição sedutora e botão de agendamento rápido.
+   - Menu de Procedimentos / Serviços: Cards elegantes com os principais tratamentos do nicho {nicho}, descrição sedutora e botão de agendamento rápido. NÃO invente valores em R$ ou tabelas de preços fictícias. Utilize botões de CTA como 'Consultar Tabela / Agendar via WhatsApp' ou 'Solicitar Orçamento Personalizado'.
    - Depoimentos / Prova Social: Cards sofisticados com comentários reais de clientes encantadas.
    - Localização & Espaço: Informando o bairro {bairro}, ambiente com estacionamento e horário com hora marcada.
    - Botão Flutuante do WhatsApp: No canto inferior direito, com animação pulsante suave e link direto para {whatsapp_link}.
@@ -168,30 +354,34 @@ ESPECIFICAÇÕES TÉCNICAS E DE DESIGN OBRIGATÓRIAS:
             return self._gerar_landing_fallback(lead)
 
     def _gerar_pitch_fallback(self, lead: dict) -> str:
-        """Template de pitch consultivo humanizado caso a API não esteja configurada."""
+        """Script de vendas curto e conversacional para WhatsApp (fallback sem IA)."""
         nome = lead.get("nome", "Espaço")
-        nicho = lead.get("nicho", "estética e beleza")
-        bairro = f" em {lead['bairro']}" if lead.get("bairro") else ""
+        nicho = lead.get("nicho", "estética")
+        bairro = f" no {lead['bairro']}" if lead.get("bairro") else ""
         nota = lead.get("nota", "5.0")
-        reviews = lead.get("qtd_reviews", "diversas")
+        reviews = lead.get("qtd_reviews", "várias")
         classificacao = lead.get("classificacao", "Tipo A (Sem Site)")
+        is_tipo_b = "Tipo B" in str(classificacao)
 
-        if "Tipo A" in classificacao:
-            return (
-                f"Olá, tudo bem? ✨\n\n"
-                f"Estava pesquisando os melhores espaços de {nicho}{bairro} e fiquei muito impressionado com a reputação do *{nome}* no Google — nota {nota} com mais de {reviews} avaliações positivas! Parabéns pelo trabalho impecável.\n\n"
-                f"Notei, porém, que ao buscar pelo espaço, muitas clientes novas que vêm pelo Google ou Instagram não encontram um site oficial elegante para conhecer o catálogo de procedimentos e acabam em dúvida antes de chamar no WhatsApp.\n\n"
-                f"Para valorizar ainda mais a autoridade do *{nome}*, montei uma demonstração rápida de uma página exclusiva de luxo pensada para converter visitantes diretamente em agendamentos no seu WhatsApp.\n\n"
-                f"Posso te mandar o link da prévia de 1 minutinho por aqui para você dar uma olhada, sem nenhum compromisso? 🌸"
+        if not is_tipo_b:
+            msg_principal = (
+                f"Oi, tudo bem? Vi o trabalho impecável de vocês no *{nome}*{bairro} no Google — nota {nota} com {reviews} avaliações, parabéns!\n\n"
+                f"Vi que vocês têm excelentes avaliações no Google, mas ainda não têm uma página própria para receber os agendamentos direto no WhatsApp, dependendo só do Insta.\n\n"
+                f"Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?"
             )
         else:
-            return (
-                f"Olá, tudo bem? ✨\n\n"
-                f"Passando para parabenizar pelo trabalho incrível no *{nome}*{bairro}! A nota {nota} com {reviews} avaliações no Google reflete muito o carinho que vocês têm pelas clientes.\n\n"
-                f"Dando uma olhada na presença digital de vocês, vi que o site atual não está transmitindo toda a sofisticação e o padrão de luxo que o espaço de vocês oferece hoje (principalmente na navegação pelo celular, onde mais de 90% das clientes buscam).\n\n"
-                f"Desenvolvi um conceito moderno e visualmente impecável de Landing Page de alta conversão, focado em atrair clientes de alto valor e facilitar o agendamento direto no seu WhatsApp.\n\n"
-                f"Gostaria de ver o link da prévia rápida para conferir como ficou? Sem nenhum compromisso, apenas para compartilhar a ideia! 📲"
+            msg_principal = (
+                f"Oi, tudo bem? Vi o trabalho impecável de vocês no *{nome}*{bairro} no Google — nota {nota} com {reviews} avaliações, parabéns!\n\n"
+                f"Vi que vocês recebem clientes pelo Google, mas o site atual tem lentidão/atrito no celular, o que faz muita gente desistir antes de chamar no Zap.\n\n"
+                f"Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?"
             )
+
+        follow_up = (
+            f"Opa, tudo bem? Imagino que a rotina aí no {nome} esteja super corrida! "
+            f"Conseguiu dar uma olhada na mensagem anterior sobre a prévia de 1 min? Um abraço!"
+        )
+
+        return f"{msg_principal}\n\n---\n⏰ *Follow-up (24h se não responder):*\n{follow_up}"
 
     def _gerar_landing_fallback(self, lead: dict) -> str:
         """Gera uma Landing Page HTML5 de luxo completa com Tailwind CSS como fallback ultra-rápido e robusto."""

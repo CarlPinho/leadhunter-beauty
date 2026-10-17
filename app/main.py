@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from app.notion_service import NotionService
 from app.scraper import GoogleMapsScraper
 from app.ai_service import AIService
+from app.site_extractor import extrair_conteudo_site
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -48,8 +49,8 @@ _session_leads_cache: Dict[str, Dict[str, Any]] = {}
 
 
 def _obter_lead_hibrido(page_id: str) -> Optional[Dict[str, Any]]:
-    """Recupera o lead do Notion se configurado, ou do cache em memória."""
-    if notion_service.is_configured():
+    """Recupera o lead do Notion se configurado e não for ID de buffer temporário, ou do cache em memória."""
+    if notion_service.is_configured() and not page_id.startswith("lead_"):
         try:
             return notion_service.obter_lead(page_id)
         except Exception:
@@ -61,7 +62,7 @@ def _atualizar_lead_hibrido(page_id: str, updates: dict):
     """Atualiza o lead no Notion e no cache da sessão."""
     if page_id in _session_leads_cache:
         _session_leads_cache[page_id].update(updates)
-    if notion_service.is_configured():
+    if notion_service.is_configured() and not page_id.startswith("lead_"):
         try:
             return notion_service.atualizar_lead(page_id, updates)
         except Exception:
@@ -70,9 +71,13 @@ def _atualizar_lead_hibrido(page_id: str, updates: dict):
 
 # --- Modelos Pydantic ---
 class ProspectarRequest(BaseModel):
-    nicho: str = Field(default="Extensão de Cílios", description="Nicho de atuação da beleza")
-    localizacao: str = Field(default="Vila Leopoldina, São Paulo", description="Bairro ou região para busca")
+    nicho: str = Field(default="Extensão de Cílios", description="Nicho de atuação da busca")
+    localizacao: str = Field(default="Vila Leopoldina, São Paulo - SP", description="Bairro ou região para busca")
     limite: int = Field(default=8, ge=1, le=30, description="Quantidade máxima de estabelecimentos a extrair")
+
+
+class EnviarNotionRequest(BaseModel):
+    leads: List[Dict[str, Any]] = Field(..., description="Lista de leads selecionados para enviar ao Notion")
 
 
 class StatusUpdateRequest(BaseModel):
@@ -148,16 +153,13 @@ async def listar_leads(filtro_status: Optional[str] = Query(None, alias="status"
 
 
 @app.post("/api/prospectar")
-async def prospectar_e_salvar(req: ProspectarRequest):
+async def prospectar(req: ProspectarRequest):
     """
-    Roda a extração via Playwright no Google Maps,
-    audita URLs (Tipo A / Tipo B) e salva os novos registros diretamente no Notion.
+    Roda a extração via Playwright no Google Maps e audita URLs (Tipo A / Tipo B).
+    NÃO salva automaticamente no Notion; armazena em buffer de sessão e retorna
+    para seleção e envio controlado pelo usuário.
     """
     try:
-        # Garante as propriedades no Notion antes de salvar se estiver configurado
-        if notion_service.is_configured():
-            notion_service.garantir_estrutura_database()
-
         # Executa Playwright scraper
         leads_extraidos = await scraper.prospectar(
             nicho=req.nicho,
@@ -165,37 +167,85 @@ async def prospectar_e_salvar(req: ProspectarRequest):
             limite=req.limite
         )
 
-        salvos = []
-        erros_salvamento = []
-
+        preparados = []
         for item in leads_extraidos:
             lead_id = f"lead_{uuid.uuid4().hex[:10]}"
             item["id"] = lead_id
             item["has_demo"] = bool(item.get("demo_html"))
-            item["notion_url"] = f"https://notion.so/{lead_id}"
+            item["synced_notion"] = False
+            item["notion_url"] = ""
+            item["status"] = item.get("status") or "Novo Lead"
 
-            if notion_service.is_configured():
-                try:
-                    page_id = notion_service.salvar_lead(item)
-                    item["id"] = page_id
-                    item["notion_url"] = f"https://notion.so/{page_id.replace('-', '')}"
-                except Exception as ex_save:
-                    erros_salvamento.append(f"{item.get('nome')}: {str(ex_save)}")
-
-            _session_leads_cache[item["id"]] = item
-            salvos.append(item)
+            _session_leads_cache[lead_id] = item
+            preparados.append(item)
 
         return {
             "success": True,
-            "total_extraidos": len(leads_extraidos),
-            "salvos_notion": len([s for s in salvos if not s["id"].startswith("lead_")]),
-            "leads": salvos,
-            "erros": erros_salvamento,
+            "total_extraidos": len(preparados),
+            "leads": preparados,
             "notion_configured": notion_service.is_configured()
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro na prospecção: {str(e)}")
+
+
+@app.post("/api/leads/enviar-notion")
+async def enviar_leads_para_notion(req: EnviarNotionRequest):
+    """
+    Recebe a lista de leads selecionados pelo usuário, salva cada um no Notion Database
+    e retorna os dados atualizados com os page_id oficiais do Notion.
+    """
+    if not notion_service.is_configured():
+        raise HTTPException(
+            status_code=400,
+            detail="NOTION_API_KEY ou NOTION_DATABASE_ID não configurados no arquivo .env"
+        )
+
+    try:
+        notion_service.garantir_estrutura_database()
+    except Exception:
+        pass
+
+    sincronizados = []
+    erros = []
+
+    for lead_input in req.leads:
+        temp_id = lead_input.get("id", "")
+        # Mescla com dados do cache de sessão (preserva pitch/demo caso gerados em buffer)
+        dados_completos = dict(_session_leads_cache.get(temp_id, {}))
+        dados_completos.update(lead_input)
+
+        nome = dados_completos.get("nome", "Sem Nome")
+        try:
+            page_id = notion_service.salvar_lead(dados_completos)
+
+            # Se tiver demo_html gerado, tenta também anexar bloco de código
+            if dados_completos.get("demo_html"):
+                try:
+                    notion_service.salvar_bloco_codigo_html(page_id, dados_completos["demo_html"])
+                except Exception:
+                    pass
+
+            dados_completos["id"] = page_id
+            dados_completos["synced_notion"] = True
+            dados_completos["notion_url"] = f"https://notion.so/{page_id.replace('-', '')}"
+
+            # Atualiza cache de sessão
+            if temp_id and temp_id in _session_leads_cache:
+                del _session_leads_cache[temp_id]
+            _session_leads_cache[page_id] = dados_completos
+
+            sincronizados.append(dados_completos)
+        except Exception as ex:
+            erros.append(f"{nome}: {str(ex)}")
+
+    return {
+        "success": True,
+        "total_enviados": len(sincronizados),
+        "leads": sincronizados,
+        "erros": erros
+    }
 
 
 @app.post("/api/leads/{page_id}/gerar-pitch")
@@ -234,6 +284,47 @@ async def salvar_pitch_manual(page_id: str, payload: PitchUpdateRequest):
         return {"success": True, "page_id": page_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar pitch no Notion: {str(e)}")
+
+
+@app.post("/api/leads/{page_id}/gerar-prompt-studio")
+async def gerar_prompt_studio_lead(page_id: str):
+    """
+    Extrai inteligência do site existente do lead (se houver) e gera um Super Prompt
+    hiperpersonalizado para o usuário colar diretamente no Google AI Studio (Build with Gemini).
+    """
+    try:
+        lead = _obter_lead_hibrido(page_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado no Notion ou sessão")
+
+        # Se o lead tiver website original válido, extrai o conteúdo real
+        website = lead.get("website_original", "")
+        conteudo_site = {}
+        if website:
+            try:
+                conteudo_site = extrair_conteudo_site(website)
+            except Exception:
+                pass
+
+        # Gera o Super Prompt personalizado
+        prompt_texto = ai_service.gerar_prompt_ai_studio(lead, conteudo_extraido=conteudo_site)
+
+        # Atualiza dados no lead (sessão/cache)
+        updates = {
+            "prompt_studio": prompt_texto,
+            "conteudo_extraido": conteudo_site
+        }
+        _atualizar_lead_hibrido(page_id, updates)
+
+        return {
+            "success": True,
+            "page_id": page_id,
+            "prompt": prompt_texto,
+            "conteudo_extraido": conteudo_site,
+            "has_site_content": bool(conteudo_site.get("tem_conteudo"))
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar prompt para AI Studio: {str(e)}")
 
 
 @app.post("/api/leads/{page_id}/gerar-site")
