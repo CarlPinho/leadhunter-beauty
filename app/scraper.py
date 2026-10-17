@@ -142,6 +142,39 @@ class GoogleMapsScraper:
 
                 logger.info(f"Total de estabelecimentos válidos no feed: {len(place_links)}")
 
+                # Se nenhum card foi listado, pode ter aberto diretamente o estabelecimento
+                if len(place_links) == 0:
+                    h1_el = page.locator('h1.DUwDvf, h1.fontHeadlineLarge, div[role="main"] h1')
+                    if await h1_el.count() > 0:
+                        logger.info("Google Maps abriu diretamente a página do estabelecimento. Extraindo dados...")
+                        detalhes = await self._extrair_detalhes_painel(page)
+                        nome = detalhes.get("nome") or "Estabelecimento"
+                        endereco = detalhes.get("endereco", "")
+                        bairro = _extrair_bairro(endereco, fallback_localizacao=localizacao)
+                        telefone = detalhes.get("telefone", "")
+                        website = _limpar_url_google(detalhes.get("website", ""))
+                        link_wa = get_whatsapp_link(telefone)
+                        auditoria = await auditar_url(website)
+
+                        lead = {
+                            "nome": nome,
+                            "nicho": nicho,
+                            "bairro": bairro,
+                            "endereco": endereco,
+                            "telefone": telefone,
+                            "link_whatsapp": link_wa,
+                            "nota": detalhes.get("nota"),
+                            "qtd_reviews": detalhes.get("qtd_reviews"),
+                            "website_original": website,
+                            "classificacao": auditoria["classificacao"],
+                            "motivo_auditoria": auditoria["motivo"],
+                            "status": "Novo Lead",
+                            "pitch_whatsapp": "",
+                            "demo_html": ""
+                        }
+                        resultados.append(lead)
+                        return resultados
+
                 alvos = place_links[:limite]
 
                 for index, link_locator in enumerate(alvos):
@@ -268,7 +301,7 @@ class GoogleMapsScraper:
 
         # 4. Website
         try:
-            site_el = page.locator('a[data-item-id="authority"], a[data-tooltip*="Abrir o site" i], a[aria-label*="Website:" i], a[aria-label*="Site:" i]')
+            site_el = page.locator('a[data-item-id="authority"], a[data-tooltip*="Abrir o site" i], a[aria-label*="Website:" i], a[aria-label*="Site:" i], a[data-value*="Abrir o site" i], a[data-value*="site" i]')
             if await site_el.count() > 0:
                 href = await site_el.first.get_attribute("href")
                 if href:
@@ -278,12 +311,18 @@ class GoogleMapsScraper:
 
         # 5. Telefone
         try:
-            tel_el = page.locator('button[data-tooltip*="telefone" i], button[data-item-id*="phone:tel:"], button[aria-label*="Telefone:" i]')
+            tel_el = page.locator('button[data-tooltip*="telefone" i], button[data-item-id*="phone:tel:"], button[aria-label*="Telefone:" i], button[aria-label*="Telefone" i], button[data-tooltip*="phone" i]')
             if await tel_el.count() > 0:
                 aria = await tel_el.first.get_attribute("aria-label") or ""
                 # O aria-label geralmente vem como "Telefone: (11) 98765-4321"
                 if "Telefone:" in aria or "Phone:" in aria:
                     dados["telefone"] = aria.split(":")[-1].strip()
+                elif "Telefone" in aria:
+                    num_match = re.search(r"(\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4})", aria)
+                    if num_match:
+                        dados["telefone"] = num_match.group(1).strip()
+                    else:
+                        dados["telefone"] = aria.replace("Telefone", "").strip()
                 else:
                     texto = await tel_el.first.inner_text()
                     dados["telefone"] = texto.strip()
@@ -292,11 +331,13 @@ class GoogleMapsScraper:
 
         # 6. Endereço
         try:
-            end_el = page.locator('button[data-item-id="address"], button[data-tooltip*="endereço" i], button[aria-label*="Endereço:" i]')
+            end_el = page.locator('button[data-item-id="address"], button[data-tooltip*="endereço" i], button[aria-label*="Endereço:" i], button[aria-label*="Endereço" i], button[data-tooltip*="address" i]')
             if await end_el.count() > 0:
                 aria = await end_el.first.get_attribute("aria-label") or ""
                 if "Endereço:" in aria or "Address:" in aria:
                     dados["endereco"] = aria.split(":")[-1].strip()
+                elif "Endereço" in aria:
+                    dados["endereco"] = aria.replace("Endereço", "").strip()
                 else:
                     dados["endereco"] = (await end_el.first.inner_text()).strip()
         except Exception:

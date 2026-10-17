@@ -343,8 +343,12 @@
                 <li class="leading-relaxed">Reinicie o servidor ou clique em "Verificar Notion" no topo da página. O sistema criará automaticamente as propriedades necessárias!</li>
             </ol>
 
-            <div class="pt-2 text-right">
-                <button onclick="fecharModalAjudaNotion()" class="bg-neutral-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider">Entendido</button>
+            <div class="pt-2 flex items-center justify-between gap-3">
+                <button onclick="sincronizarEstruturaNotion()" class="bg-brand-50 hover:bg-brand-100 text-brand-600 border border-brand-200 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                    <span>🔄</span>
+                    <span>Sincronizar Estrutura Agora</span>
+                </button>
+                <button onclick="fecharModalAjudaNotion()" class="bg-neutral-900 hover:bg-neutral-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition">Entendido</button>
             </div>
         </div>
     </div>
@@ -609,9 +613,14 @@
                                 </a>
                             ` : `<span class="text-neutral-300">Sem WhatsApp</span>`}
 
-                            <a href="${lead.notion_url || '#'}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-800 font-medium flex items-center gap-1" title="Abrir registro direto no Notion Database">
-                                <span>Notion ↗</span>
-                            </a>
+                            <div class="flex items-center gap-2.5">
+                                <a href="${lead.notion_url || '#'}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-800 font-medium flex items-center gap-1" title="Abrir registro direto no Notion Database">
+                                    <span>Notion ↗</span>
+                                </a>
+                                <button onclick="removerLead('${lead.id}', '${(lead.nome || '').replace(/'/g, "\\'")}')" class="text-neutral-300 hover:text-rose-600 transition p-0.5 rounded" title="Arquivar / remover lead">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -692,7 +701,40 @@
             }
         }
 
-        // 8. Modal de Pitch
+        // 8. Remover / Arquivar Lead
+        async function removerLead(pageId, nomeLead) {
+            const nomeExibicao = nomeLead ? `"${nomeLead}"` : 'este lead';
+            if (!confirm(`Deseja realmente remover/arquivar ${nomeExibicao} no Notion?`)) return;
+
+            try {
+                const res = await fetch(`/api/leads/${pageId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Falha ao remover o lead');
+
+                todosOsLeads = todosOsLeads.filter(l => l.id !== pageId);
+                atualizarMetricas();
+                aplicarFiltrosLocais();
+                showToast(`Lead ${nomeExibicao} arquivado com sucesso!`, 'success');
+            } catch (err) {
+                console.error("Erro ao remover lead:", err);
+                showToast(`Erro ao remover: ${err.message}`, 'error');
+            }
+        }
+
+        // 9. Sincronizar Estrutura do Banco no Notion
+        async function sincronizarEstruturaNotion() {
+            try {
+                showToast('Verificando propriedades no Notion Database...', 'info');
+                const res = await fetch('/api/notion/setup', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Falha ao sincronizar');
+                showToast(data.message || 'Estrutura do Notion sincronizada!', 'success');
+                await checkSystemStatus(false);
+            } catch (err) {
+                showToast(`Erro ao sincronizar Notion: ${err.message}`, 'error');
+            }
+        }
+
+        // 10. Modal de Pitch
         async function abrirPitchModal(pageId) {
             const lead = todosOsLeads.find(l => l.id === pageId);
             if (!lead) return;

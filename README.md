@@ -20,6 +20,8 @@ leadhunter/
 ├── .env.example
 ├── .env
 ├── requirements.txt
+├── AGENT_MEMORY.md          # Memória e contexto do projeto para IA
+├── AGENT_INSTRUCTIONS.md    # Instruções e restrições para agentes
 └── README.md
 ```
 

@@ -254,6 +254,13 @@ async def gerar_site_lead(page_id: str):
         }
         _atualizar_lead_hibrido(page_id, updates)
 
+        # Opcionalmente sincroniza bloco de código na página do Notion
+        if notion_service.is_configured() and not page_id.startswith("lead_"):
+            try:
+                notion_service.salvar_bloco_codigo_html(page_id, html_code)
+            except Exception:
+                pass
+
         return {
             "success": True,
             "page_id": page_id,
@@ -292,6 +299,15 @@ async def preview_landing_page(page_id: str):
         )
 
 
+@app.get("/api/leads/{page_id}")
+async def obter_detalhes_lead(page_id: str):
+    """Retorna os dados completos de um lead específico."""
+    lead = _obter_lead_hibrido(page_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    return lead
+
+
 @app.patch("/api/leads/{page_id}/status")
 async def atualizar_status_lead(page_id: str, payload: StatusUpdateRequest):
     """Altera a propriedade 'Status' no Notion."""
@@ -304,6 +320,40 @@ async def atualizar_status_lead(page_id: str, payload: StatusUpdateRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao atualizar status: {str(e)}")
+
+
+@app.delete("/api/leads/{page_id}")
+async def arquivar_lead(page_id: str):
+    """Remove (arquiva) o lead diretamente no Notion Database e no cache da sessão."""
+    try:
+        if page_id in _session_leads_cache:
+            del _session_leads_cache[page_id]
+
+        if notion_service.is_configured() and not page_id.startswith("lead_"):
+            notion_service.arquivar_lead(page_id)
+
+        return {
+            "success": True,
+            "page_id": page_id,
+            "message": "Lead removido com sucesso"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao arquivar lead: {str(e)}")
+
+
+@app.post("/api/notion/setup")
+async def configurar_notion_database():
+    """Garante que a estrutura de colunas do Notion Database esteja atualizada com todas as regras de negócio."""
+    if not notion_service.is_configured():
+        raise HTTPException(status_code=400, detail="Notion não configurado no arquivo .env")
+    try:
+        ok = notion_service.garantir_estrutura_database()
+        return {
+            "success": ok,
+            "message": "Estrutura do banco de dados no Notion verificada e atualizada com sucesso!"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao estruturar banco no Notion: {str(e)}")
 
 
 if __name__ == "__main__":

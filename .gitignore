@@ -1,14 +1,17 @@
-# Environment variables
-.env
-.env.local
+# Ambientes virtuais
+venv/
+.venv/
+env/
+ENV/
 
-# Python
+# Python cache
 __pycache__/
+*.pyc
+*.pyo
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -25,16 +28,17 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
-.venv/
-ENV/
+# Arquivos de ambiente e segredos (NUNCA SUBIR)
+.env
+.env.local
 
 # Playwright
-.playwright/
 test-results/
+playwright-report/
+.playwright/
 
-# macOS
+# Sistema Operacional
 .DS_Store
 .AppleDouble
 .LSOverride
+Thumbs.db

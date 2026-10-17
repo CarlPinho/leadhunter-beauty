@@ -37,7 +37,20 @@ SOCIAL_AND_BIO_DOMAINS = {
     "meusalao.com.br",
     "trinks.com",
     "avec.app",
-    "agendae.com.br"
+    "agendae.com.br",
+    "agendaboa.com",
+    "simplesagenda.com.br",
+    "belasis.com.br",
+    "gendo.com.br",
+    "booksy.com",
+    "bit.ly",
+    "tinyurl.com",
+    "linkr.bio",
+    "instabio.cc",
+    "app.link",
+    "flowcode.com",
+    "page.link",
+    "link.me"
 }
 
 
@@ -91,13 +104,13 @@ def get_whatsapp_link(raw_phone: str) -> str:
 async def auditar_url(url: str | None) -> dict:
     """
     Analisa a presença e qualidade do website e classifica o Lead:
-    - 'Tipo A (Sem Site)': Sem URL, ou aponta para redes sociais / linktr.ee / WhatsApp
+    - 'Tipo A (Sem Site)': Sem URL, ou aponta/redireciona para redes sociais / linktr.ee / WhatsApp
     - 'Tipo B (Site Obsoleto)': Possui domínio próprio com falhas (erro HTTP, ausência de <title> ou <h1>,
       falta de viewport mobile, layout estático desatualizado).
     """
     clean_url = (url or "").strip()
 
-    # 1. Checagem inicial: Vazio ou Rede Social
+    # 1. Checagem inicial: Vazio ou Rede Social direta
     if not clean_url or _is_social_or_bio_link(clean_url):
         motivo = "Sem website próprio cadastrado" if not clean_url else "Utiliza apenas rede social / agregador de links"
         return {
@@ -122,6 +135,19 @@ async def auditar_url(url: str | None) -> dict:
     try:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, verify=False) as client:
             response = await client.get(test_url, headers=headers)
+
+            # 2. Checagem de redirecionamento final para rede social ou agregador de bio
+            final_url = str(response.url)
+            if _is_social_or_bio_link(final_url):
+                return {
+                    "classificacao": "Tipo A (Sem Site)",
+                    "motivo": f"Domínio próprio apenas redireciona para rede social / agregador ({urlparse(final_url).hostname})",
+                    "status_code": response.status_code,
+                    "has_title": False,
+                    "has_h1": False,
+                    "is_responsive": False,
+                    "url_auditada": clean_url
+                }
 
             if response.status_code >= 400:
                 return {

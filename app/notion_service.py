@@ -153,10 +153,101 @@ class NotionService:
             logger.warning(f"Aviso ao verificar/garantir propriedades do Notion: {e}")
             return False
 
+    def _build_properties_payload(self, data: dict, schema: dict, is_create: bool = False) -> Dict[str, Any]:
+        """
+        Monta o dicionário de propriedades formatado para a API do Notion,
+        respeitando os tipos do schema e os limites de caracteres (máx 2000 por bloco).
+        """
+        status_prop_type = schema.get("Status", {}).get("type", "select")
+        bairro_prop_type = schema.get("Bairro", {}).get("type", "rich_text")
+        tel_prop_type = schema.get("Telefone", {}).get("type", "phone_number")
+
+        properties: Dict[str, Any] = {}
+
+        # 1. Nome (title)
+        if "nome" in data and data["nome"]:
+            properties["Nome"] = {
+                "title": [{"type": "text", "text": {"content": str(data["nome"]).strip()[:100]}}]
+            }
+        elif is_create:
+            properties["Nome"] = {
+                "title": [{"type": "text", "text": {"content": "Lead Sem Nome"}}]
+            }
+
+        # 2. Nicho (select)
+        if "nicho" in data and data["nicho"]:
+            properties["Nicho"] = {"select": {"name": str(data["nicho"]).strip()[:50]}}
+
+        # 3. Bairro (rich_text ou select)
+        if "bairro" in data and data["bairro"]:
+            bairro_val = str(data["bairro"]).strip()[:100]
+            if bairro_prop_type == "select":
+                properties["Bairro"] = {"select": {"name": bairro_val}}
+            else:
+                properties["Bairro"] = {"rich_text": [{"type": "text", "text": {"content": bairro_val}}]}
+
+        # 4. Telefone (phone_number ou rich_text)
+        if "telefone" in data and data["telefone"]:
+            tel_val = str(data["telefone"]).strip()[:30]
+            if tel_prop_type == "phone_number":
+                properties["Telefone"] = {"phone_number": tel_val}
+            else:
+                properties["Telefone"] = {"rich_text": [{"type": "text", "text": {"content": tel_val}}]}
+
+        # 5. Link WhatsApp (url)
+        if "link_whatsapp" in data and data["link_whatsapp"]:
+            properties["Link WhatsApp"] = {"url": str(data["link_whatsapp"]).strip()}
+
+        # 6. Nota (number)
+        if "nota" in data and data["nota"] is not None:
+            try:
+                properties["Nota"] = {"number": float(data["nota"])}
+            except (ValueError, TypeError):
+                pass
+
+        # 7. Qtd Reviews (number)
+        if "qtd_reviews" in data and data["qtd_reviews"] is not None:
+            try:
+                properties["Qtd Reviews"] = {"number": int(data["qtd_reviews"])}
+            except (ValueError, TypeError):
+                pass
+
+        # 8. Website Original (url)
+        if "website_original" in data and data["website_original"]:
+            properties["Website Original"] = {"url": str(data["website_original"]).strip()}
+
+        # 9. Classificação (select)
+        if "classificacao" in data and data["classificacao"]:
+            properties["Classificação"] = {"select": {"name": str(data["classificacao"]).strip()}}
+
+        # 10. Status (status ou select)
+        if "status" in data and data["status"]:
+            status_val = str(data["status"]).strip()
+            if status_prop_type == "status":
+                properties["Status"] = {"status": {"name": status_val}}
+            else:
+                properties["Status"] = {"select": {"name": status_val}}
+        elif is_create:
+            status_default = "Novo Lead"
+            if status_prop_type == "status":
+                properties["Status"] = {"status": {"name": status_default}}
+            else:
+                properties["Status"] = {"select": {"name": status_default}}
+
+        # 11. Pitch WhatsApp (rich_text)
+        if "pitch_whatsapp" in data and data["pitch_whatsapp"]:
+            properties["Pitch WhatsApp"] = {"rich_text": _chunk_rich_text(str(data["pitch_whatsapp"]))}
+
+        # 12. Demo HTML (rich_text)
+        if "demo_html" in data and data["demo_html"]:
+            properties["Demo HTML"] = {"rich_text": _chunk_rich_text(str(data["demo_html"]))}
+
+        return properties
+
     def salvar_lead(self, lead_data: dict) -> str:
         """
-        Insere um novo lead no Notion verificando duplicidade por Nome/Telefone.
-        Retorna o page_id.
+        Insere um novo lead no Notion verificando duplicidade por Nome ou Telefone.
+        Se já existir, atualiza os dados completos. Retorna o page_id.
         """
         nome = (lead_data.get("nome") or "").strip()
         telefone = (lead_data.get("telefone") or "").strip()
@@ -164,12 +255,14 @@ class NotionService:
         if not nome:
             raise ValueError("O lead precisa ter ao menos um 'Nome'")
 
-        # 1. Checagem de duplicidade no Notion
+        schema = self._get_schema()
+
+        # 1. Checagem de duplicidade por Nome
         try:
-            filtro_duplicidade = {"property": "Nome", "title": {"equals": nome}}
+            filtro_nome = {"property": "Nome", "title": {"equals": nome}}
             query_res = self.client.databases.query(
                 database_id=self.database_id,
-                filter=filtro_duplicidade,
+                filter=filtro_nome,
                 page_size=1
             )
             if query_res.get("results"):
@@ -180,76 +273,41 @@ class NotionService:
         except Exception as e:
             logger.warning(f"Erro ao verificar duplicidade por nome no Notion: {e}")
 
-        # Se não existe, monta o payload das propriedades respeitando o schema do banco
-        schema = self._get_schema()
-        status_prop_type = schema.get("Status", {}).get("type", "select")
-        bairro_prop_type = schema.get("Bairro", {}).get("type", "rich_text")
-        tel_prop_type = schema.get("Telefone", {}).get("type", "phone_number")
-
-        properties: Dict[str, Any] = {
-            "Nome": {
-                "title": [{"type": "text", "text": {"content": nome[:100]}}]
-            }
-        }
-
-        if lead_data.get("nicho"):
-            properties["Nicho"] = {"select": {"name": str(lead_data["nicho"])[:50]}}
-
-        if lead_data.get("bairro"):
-            bairro_val = str(lead_data["bairro"])[:100]
-            if bairro_prop_type == "select":
-                properties["Bairro"] = {"select": {"name": bairro_val}}
-            else:
-                properties["Bairro"] = {"rich_text": [{"type": "text", "text": {"content": bairro_val}}]}
-
-        if telefone:
-            if tel_prop_type == "phone_number":
-                properties["Telefone"] = {"phone_number": telefone[:30]}
-            else:
-                properties["Telefone"] = {"rich_text": [{"type": "text", "text": {"content": telefone[:30]}}]}
-
-        if lead_data.get("link_whatsapp"):
-            properties["Link WhatsApp"] = {"url": lead_data["link_whatsapp"]}
-
-        if lead_data.get("nota") is not None:
+        # 2. Checagem opcional de duplicidade por Telefone se fornecido
+        if telefone and "Telefone" in schema:
             try:
-                properties["Nota"] = {"number": float(lead_data["nota"])}
-            except (ValueError, TypeError):
-                pass
+                tel_type = schema["Telefone"].get("type", "phone_number")
+                filtro_tel = (
+                    {"property": "Telefone", "phone_number": {"equals": telefone}}
+                    if tel_type == "phone_number"
+                    else {"property": "Telefone", "rich_text": {"equals": telefone}}
+                )
+                query_tel = self.client.databases.query(
+                    database_id=self.database_id,
+                    filter=filtro_tel,
+                    page_size=1
+                )
+                if query_tel.get("results"):
+                    page_id = query_tel["results"][0]["id"]
+                    logger.info(f"Lead já cadastrado com o telefone '{telefone}' (ID: {page_id}). Atualizando dados...")
+                    self.atualizar_lead(page_id, lead_data)
+                    return page_id
+            except Exception as e:
+                logger.debug(f"Verificação de duplicidade por telefone ignorada: {e}")
 
-        if lead_data.get("qtd_reviews") is not None:
-            try:
-                properties["Qtd Reviews"] = {"number": int(lead_data["qtd_reviews"])}
-            except (ValueError, TypeError):
-                pass
-
-        if lead_data.get("website_original"):
-            properties["Website Original"] = {"url": lead_data["website_original"]}
-
-        if lead_data.get("classificacao"):
-            properties["Classificação"] = {"select": {"name": lead_data["classificacao"]}}
-
-        # Status inicial
-        status_inicial = lead_data.get("status") or "Novo Lead"
-        if status_prop_type == "status":
-            properties["Status"] = {"status": {"name": status_inicial}}
-        else:
-            properties["Status"] = {"select": {"name": status_inicial}}
-
-        if lead_data.get("pitch_whatsapp"):
-            properties["Pitch WhatsApp"] = {"rich_text": _chunk_rich_text(lead_data["pitch_whatsapp"])}
-
-        if lead_data.get("demo_html"):
-            properties["Demo HTML"] = {"rich_text": _chunk_rich_text(lead_data["demo_html"])}
-
+        # 3. Criação de nova página
+        properties = self._build_properties_payload(lead_data, schema, is_create=True)
         nova_pagina = self.client.pages.create(
             parent={"database_id": self.database_id},
             properties=properties
         )
         return nova_pagina["id"]
 
-    def listar_leads(self, filtro_status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recupera os registros do Notion para exibir no frontend."""
+    def listar_leads(self, filtro_status: Optional[str] = None, max_results: int = 300) -> List[Dict[str, Any]]:
+        """
+        Recupera os registros do Notion para exibir no frontend com suporte a paginação
+        e ordenação por data de criação decrescente.
+        """
         if not self.is_configured():
             return []
 
@@ -262,16 +320,42 @@ class NotionService:
             else:
                 filtro = {"property": "Status", "select": {"equals": filtro_status}}
 
-        query_args: Dict[str, Any] = {"database_id": self.database_id}
+        query_args: Dict[str, Any] = {
+            "database_id": self.database_id,
+            "page_size": 100,
+            "sorts": [{"timestamp": "created_time", "direction": "descending"}]
+        }
         if filtro:
             query_args["filter"] = filtro
 
-        response = self.client.databases.query(**query_args)
-        results = response.get("results", [])
-
         leads = []
-        for page in results:
-            leads.append(self._parse_page_to_lead(page))
+        has_more = True
+        start_cursor = None
+
+        while has_more and len(leads) < max_results:
+            if start_cursor:
+                query_args["start_cursor"] = start_cursor
+
+            try:
+                response = self.client.databases.query(**query_args)
+            except Exception as e:
+                # Se falhar pelo parâmetro 'sorts', tenta novamente sem sorts
+                if "sorts" in query_args:
+                    del query_args["sorts"]
+                    response = self.client.databases.query(**query_args)
+                else:
+                    logger.error(f"Erro ao consultar leads no Notion: {e}")
+                    raise e
+
+            results = response.get("results", [])
+            for page in results:
+                leads.append(self._parse_page_to_lead(page))
+
+            has_more = response.get("has_more", False)
+            start_cursor = response.get("next_cursor")
+            if not start_cursor:
+                break
+
         return leads
 
     def obter_lead(self, page_id: str) -> Dict[str, Any]:
@@ -293,32 +377,50 @@ class NotionService:
         return lead
 
     def atualizar_lead(self, page_id: str, updates: dict) -> Dict[str, Any]:
-        """Atualiza status, pitch gerado ou HTML do site no Notion."""
+        """Atualiza quaisquer propriedades do lead no Notion (status, pitch, demo, dados de contato, etc.)."""
         schema = self._get_schema()
-        status_prop_type = schema.get("Status", {}).get("type", "select")
+        properties = self._build_properties_payload(updates, schema, is_create=False)
 
-        properties: Dict[str, Any] = {}
-
-        if "status" in updates and updates["status"]:
-            if status_prop_type == "status":
-                properties["Status"] = {"status": {"name": updates["status"]}}
-            else:
-                properties["Status"] = {"select": {"name": updates["status"]}}
-
-        if "pitch_whatsapp" in updates:
-            properties["Pitch WhatsApp"] = {"rich_text": _chunk_rich_text(updates["pitch_whatsapp"])}
-
-        if "demo_html" in updates:
-            properties["Demo HTML"] = {"rich_text": _chunk_rich_text(updates["demo_html"])}
-
-        if "classificacao" in updates:
-            properties["Classificação"] = {"select": {"name": updates["classificacao"]}}
-
-        if "link_whatsapp" in updates:
-            properties["Link WhatsApp"] = {"url": updates["link_whatsapp"]}
+        if not properties:
+            return self.obter_lead(page_id)
 
         res = self.client.pages.update(page_id=page_id, properties=properties)
         return self._parse_page_to_lead(res)
+
+    def arquivar_lead(self, page_id: str) -> bool:
+        """Arquiva (remove) um lead do Notion Database."""
+        try:
+            self.client.pages.update(page_id=page_id, archived=True)
+            logger.info(f"Lead arquivado com sucesso no Notion (ID: {page_id})")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao arquivar lead no Notion (ID: {page_id}): {e}")
+            raise
+
+    def salvar_bloco_codigo_html(self, page_id: str, html_code: str) -> bool:
+        """
+        Opcionalmente adiciona o código HTML da landing page como um bloco de código
+        dentro do corpo da página do Notion.
+        """
+        try:
+            self.client.blocks.children.append(
+                block_id=page_id,
+                children=[
+                    {
+                        "object": "block",
+                        "type": "code",
+                        "code": {
+                            "caption": [{"type": "text", "text": {"content": "Landing Page Preview HTML (Tailwind CSS)"}}],
+                            "rich_text": _chunk_rich_text(html_code),
+                            "language": "html"
+                        }
+                    }
+                ]
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Não foi possível salvar bloco de código HTML na página {page_id}: {e}")
+            return False
 
     def _parse_page_to_lead(self, page: Dict[str, Any]) -> Dict[str, Any]:
         """Converte uma página bruta da API do Notion em um dicionário limpo para a aplicação."""
