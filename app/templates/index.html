@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadHunter Beauty | Google Maps & Notion CRM</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        serif: ['"Playfair Display"', 'serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#FDF8F6',
+                            100: '#F2E8E5',
+                            200: '#EADDD7',
+                            500: '#C59B8B',
+                            600: '#A87968',
+                            900: '#2A201C',
+                        },
+                        gold: '#D4AF37',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #d1c7c2; border-radius: 999px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a89890; }
+    </style>
+</head>
+<body class="bg-[#FAF8F5] text-neutral-800 font-sans min-h-screen flex flex-col antialiased">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-white border-b border-neutral-200/80 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-900 via-brand-600 to-amber-700 flex items-center justify-center text-white font-serif text-2xl font-bold shadow-md shadow-brand-500/20">
+                    LH
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-serif text-2xl font-bold text-neutral-900 tracking-tight">LeadHunter <span class="text-brand-600 italic">Beauty</span></h1>
+                        <span class="text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full bg-brand-50 text-brand-600 border border-brand-200">Notion CRM Sync</span>
+                    </div>
+                    <p class="text-xs text-neutral-500 font-medium">Prospecção no Google Maps, Auditoria e IA Generativa</p>
+                </div>
+            </div>
+
+            <!-- Status de Conexão com Notion & Gemini -->
+            <div class="flex items-center space-x-3">
+                <!-- Notion Badge -->
+                <div id="notion-status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-full border border-neutral-200 bg-neutral-50 text-xs font-semibold cursor-pointer hover:bg-neutral-100 transition" onclick="verificarConexoes(true)">
+                    <span id="notion-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="notion-text" class="text-neutral-700">Verificando Notion...</span>
+                </div>
+
+                <!-- Gemini Badge -->
+                <div id="gemini-status-badge" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-neutral-200 bg-neutral-50 text-xs font-medium text-neutral-600">
+                    <span class="text-amber-500">✨</span>
+                    <span id="gemini-text">Gemini IA</span>
+                </div>
+
+                <!-- Botão de Recarregar Leads -->
+                <button onclick="carregarLeads()" title="Atualizar lista do Notion" class="p-2 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100 rounded-xl transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+
+        <!-- Banner de Alerta caso Notion não esteja configurado -->
+        <div id="notion-warning-banner" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div class="flex items-start gap-3">
+                <span class="text-2xl">⚠️</span>
+                <div>
+                    <h3 class="text-sm font-bold text-amber-900">Integração com Notion requer configuração de chaves</h3>
+                    <p class="text-xs text-amber-800 mt-0.5">Preencha <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">NOTION_API_KEY</code> e <code class="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">NOTION_DATABASE_ID</code> no arquivo <code class="font-bold">.env</code> para salvar os leads diretamente no seu banco de dados.</p>
+                </div>
+            </div>
+            <button onclick="abrirModalAjudaNotion()" class="text-xs font-bold uppercase tracking-wider bg-amber-800 hover:bg-amber-900 text-white px-4 py-2 rounded-xl transition shrink-0">
+                Ver Como Configurar
+            </button>
+        </div>
+
+        <!-- Seção de Busca e Extração Google Maps -->
+        <section class="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200/90 shadow-sm relative overflow-hidden">
+            <div class="absolute -right-16 -top-16 w-56 h-56 bg-brand-50 rounded-full blur-3xl pointer-events-none"></div>
+            
+            <div class="relative z-10 space-y-6">
+                <div>
+                    <h2 class="font-serif text-xl sm:text-2xl font-bold text-neutral-900">Prospecção de Estabelecimentos de Beleza</h2>
+                    <p class="text-xs sm:text-sm text-neutral-500 mt-1">Extração automatizada no Google Maps, detecção de ausência de site próprio e sincronização direta no Notion.</p>
+                </div>
+
+                <form id="form-prospectar" onsubmit="iniciarProspeccao(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+                    <!-- Nicho -->
+                    <div class="sm:col-span-4 space-y-1.5">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-neutral-600">Nicho / Procedimento</label>
+                        <div class="relative">
+                            <input type="text" id="input-nicho" required value="Extensão de Cílios" placeholder="Ex: Extensão de Cílios, Salão de Beleza, Estética" list="sugestoes-nicho" class="w-full pl-3.5 pr-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-medium">
+                            <datalist id="sugestoes-nicho">
+                                <option value="Extensão de Cílios">
+                                <option value="Salão de Beleza">
+                                <option value="Clínica de Estética">
+                                <option value="Design de Sobrancelhas">
+                                <option value="Nail Designer / Esmalteria">
+                                <option value="Micropigmentação">
+                                <option value="Harmonização Facial">
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <!-- Bairro / Região -->
+                    <div class="sm:col-span-5 space-y-1.5">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-neutral-600">Bairro / Cidade</label>
+                        <input type="text" id="input-localizacao" required value="Vila Leopoldina, São Paulo" placeholder="Ex: Moema, São Paulo ou Barra da Tijuca, RJ" class="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-medium">
+                    </div>
+
+                    <!-- Limite -->
+                    <div class="sm:col-span-3 space-y-1.5">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-neutral-600">Limite de Leads</label>
+                        <select id="input-limite" class="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-medium">
+                            <option value="5">5 estabelecimentos</option>
+                            <option value="8" selected>8 estabelecimentos</option>
+                            <option value="12">12 estabelecimentos</option>
+                            <option value="20">20 estabelecimentos</option>
+                        </select>
+                    </div>
+
+                    <!-- Botão de Ação -->
+                    <div class="sm:col-span-12 pt-2">
+                        <button type="submit" id="btn-prospectar" class="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-sm px-8 py-3.5 rounded-2xl transition-all shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed">
+                            <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            <span id="btn-prospectar-text">Buscar no Google Maps & Enviar ao Notion</span>
+                            <div id="btn-prospectar-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </button>
+                        <span id="prospeccao-progresso" class="hidden sm:inline-block ml-4 text-xs font-medium text-neutral-500 italic"></span>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- Barra de Métricas Rápidas -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-neutral-400">Total no Notion</p>
+                    <p id="metric-total" class="font-serif text-3xl font-bold text-neutral-900 mt-1">0</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg">📋</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-purple-200/60 shadow-xs flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-purple-700">Tipo A (Sem Site)</p>
+                    <p id="metric-tipo-a" class="font-serif text-3xl font-bold text-purple-900 mt-1">0</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xs">A</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-amber-200/60 shadow-xs flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-amber-700">Tipo B (Site Obsoleto)</p>
+                    <p id="metric-tipo-b" class="font-serif text-3xl font-bold text-amber-900 mt-1">0</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xs">B</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-emerald-200/60 shadow-xs flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">Pitches / Fechados</p>
+                    <p id="metric-pitches" class="font-serif text-3xl font-bold text-emerald-900 mt-1">0</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">✨</div>
+            </div>
+        </section>
+
+        <!-- Filtros e Tabs do CRM -->
+        <section class="space-y-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-200 pb-4">
+                
+                <!-- Abas Rápidas por Classificação -->
+                <div class="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0">
+                    <button onclick="filtrarClassificacao('todos')" id="tab-class-todos" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition bg-neutral-900 text-white">
+                        Todos
+                    </button>
+                    <button onclick="filtrarClassificacao('Tipo A')" id="tab-class-a" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50">
+                        Tipo A (Sem Site)
+                    </button>
+                    <button onclick="filtrarClassificacao('Tipo B')" id="tab-class-b" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold transition bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50">
+                        Tipo B (Site Obsoleto)
+                    </button>
+                </div>
+
+                <!-- Filtro por Status do Notion & Busca rápida -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-bold text-neutral-500 uppercase tracking-wider">Status CRM:</label>
+                        <select id="select-filtro-status" onchange="filtrarPorStatus(this.value)" class="text-xs font-semibold px-3 py-2 bg-white border border-neutral-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-500">
+                            <option value="Todos">Todos os Status</option>
+                            <option value="Novo Lead">Novo Lead</option>
+                            <option value="Pitch Gerado">Pitch Gerado</option>
+                            <option value="Mensagem Enviada">Mensagem Enviada</option>
+                            <option value="Em Conversa">Em Conversa</option>
+                            <option value="Fechado">Fechado</option>
+                            <option value="Descartado">Descartado</option>
+                        </select>
+                    </div>
+
+                    <div class="relative">
+                        <input type="text" id="filtro-texto" oninput="aplicarFiltrosLocais()" placeholder="Filtrar por nome ou bairro..." class="text-xs pl-8 pr-3 py-2 bg-white border border-neutral-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-500 w-48 sm:w-60">
+                        <svg class="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid de Cards de Leads -->
+            <div id="leads-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Estado Carregando Inicial -->
+                <div class="col-span-full py-16 text-center space-y-3">
+                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-brand-500 border-t-transparent mx-auto"></div>
+                    <p class="text-sm font-medium text-neutral-500">Carregando leads do Notion Database...</p>
+                </div>
+            </div>
+
+            <!-- Estado Vazio -->
+            <div id="leads-empty" class="hidden col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-neutral-300 p-8 space-y-4">
+                <div class="w-16 h-16 rounded-2xl bg-neutral-100 flex items-center justify-center text-3xl mx-auto">🌸</div>
+                <div class="max-w-md mx-auto">
+                    <h3 class="font-serif text-lg font-bold text-neutral-900">Nenhum lead encontrado</h3>
+                    <p class="text-xs text-neutral-500 mt-1">Experimente fazer uma nova busca no Google Maps acima ou ajuste os filtros selecionados.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal de Pitch WhatsApp -->
+    <div id="modal-pitch" class="hidden fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-neutral-100 transform transition-all">
+            <div class="flex items-start justify-between">
+                <div>
+                    <span class="text-[10px] font-bold tracking-widest uppercase text-brand-600 bg-brand-50 px-2.5 py-1 rounded-md">Abordagem Consultiva WhatsApp</span>
+                    <h3 id="modal-pitch-nome" class="font-serif text-2xl font-bold text-neutral-900 mt-2">Nome do Lead</h3>
+                    <p id="modal-pitch-sub" class="text-xs text-neutral-500 mt-0.5">Personalizado para o perfil do espaço</p>
+                </div>
+                <button onclick="fecharModalPitch()" class="text-neutral-400 hover:text-neutral-600 p-1.5 rounded-xl hover:bg-neutral-100 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Textarea do Pitch -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between text-xs text-neutral-500">
+                    <span class="font-medium">Mensagem sugerida (editável):</span>
+                    <button onclick="regerarPitchModal()" id="btn-modal-regerar" class="inline-flex items-center gap-1 text-brand-600 hover:text-brand-900 font-bold">
+                        <span>✨ Regerar com IA</span>
+                    </button>
+                </div>
+                <textarea id="modal-pitch-textarea" rows="9" class="w-full p-4 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm leading-relaxed text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 font-sans"></textarea>
+            </div>
+
+            <!-- Ações do Modal -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                <button onclick="copiarPitchModal()" id="btn-copiar-pitch" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-neutral-300 text-xs font-bold text-neutral-700 hover:bg-neutral-50 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                    <span id="btn-copiar-text">Copiar Mensagem</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="salvarPitchNoNotion()" class="px-5 py-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-xs font-bold text-neutral-800 transition">
+                        Salvar no Notion
+                    </button>
+                    <a id="modal-pitch-wa-link" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-bold tracking-wide uppercase transition shadow-md">
+                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+                        <span>Abrir no WhatsApp</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Prévia de Demonstração (Iframe) -->
+    <div id="modal-preview" class="hidden fixed inset-0 z-50 bg-neutral-900/75 backdrop-blur-xs flex items-center justify-center p-2 sm:p-6">
+        <div class="bg-white rounded-3xl w-full h-[92vh] max-w-6xl flex flex-col shadow-2xl overflow-hidden border border-neutral-200">
+            <!-- Header do Modal de Prévia -->
+            <div class="px-6 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-bold uppercase tracking-wider text-neutral-500">Demonstração ao Vivo:</span>
+                    <h4 id="preview-modal-title" class="font-serif text-lg font-bold text-neutral-900">Landing Page Exclusiva</h4>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a id="btn-preview-newtab" href="#" target="_blank" class="text-xs font-semibold text-brand-600 hover:text-brand-900 flex items-center gap-1 px-3 py-1.5 rounded-lg border border-neutral-200 bg-white">
+                        <span>Abrir em Nova Aba</span>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    </a>
+                    <button onclick="fecharModalPreview()" class="text-neutral-400 hover:text-neutral-600 p-1.5 rounded-lg hover:bg-neutral-200 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Iframe da Landing Page -->
+            <div class="flex-1 bg-neutral-100 relative">
+                <iframe id="preview-iframe" class="w-full h-full border-0" src="about:blank"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Ajuda / Setup do Notion -->
+    <div id="modal-ajuda-notion" class="hidden fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-neutral-100">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h3 class="font-serif text-2xl font-bold text-neutral-900">Como Integrar ao Notion</h3>
+                    <p class="text-xs text-neutral-500 mt-1">Passo a passo rápido para vincular seu Notion Database</p>
+                </div>
+                <button onclick="fecharModalAjudaNotion()" class="text-neutral-400 hover:text-neutral-600 p-1.5 rounded-xl hover:bg-neutral-100">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <ol class="space-y-4 text-xs sm:text-sm text-neutral-700 list-decimal list-inside">
+                <li class="leading-relaxed">Acesse <a href="https://www.notion.so/my-integrations" target="_blank" class="text-brand-600 font-bold underline">notion.so/my-integrations</a> e crie uma nova integração interna chamada "LeadHunter".</li>
+                <li class="leading-relaxed">Copie o "Internal Integration Secret" e cole no arquivo <code class="font-mono bg-neutral-100 px-1 py-0.5 rounded font-bold">.env</code> como <code class="font-mono bg-neutral-100 px-1 py-0.5 rounded font-bold">NOTION_API_KEY</code>.</li>
+                <li class="leading-relaxed">Abra o seu Database no Notion no navegador. O Database ID é a sequência de 32 caracteres na URL antes do ponto de interrogação (ex: <code class="font-mono bg-neutral-100 px-1 py-0.5 rounded">notion.so/workspace/<strong>[ID_DO_DATABASE]</strong>?v=...</code>).</li>
+                <li class="leading-relaxed">No Notion, clique nos três pontinhos <strong>(...)</strong> no canto superior direito do seu Database, vá em <strong>Conectar a / Adicionar conexões</strong> e selecione a integração criada.</li>
+                <li class="leading-relaxed">Reinicie o servidor ou clique em "Verificar Notion" no topo da página. O sistema criará automaticamente as propriedades necessárias!</li>
+            </ol>
+
+            <div class="pt-2 text-right">
+                <button onclick="fecharModalAjudaNotion()" class="bg-neutral-900 text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast de Notificações Flutuantes -->
+    <div id="toast-container" class="fixed bottom-6 left-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- JavaScript da Aplicação SPA -->
+    <script>
+        // Estado Global da Aplicação
+        let todosOsLeads = [];
+        let filtroClassificacaoAtual = 'todos';
+        let filtroStatusAtual = 'Todos';
+        let leadAtivoModal = null;
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            verificarConexoes();
+            carregarLeads();
+        });
+
+        // 1. Verificação de Conexão com Notion e Gemini
+        async function verificarConexoes(alertaManual = false) {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+
+                const notionDot = document.getElementById('notion-dot');
+                const notionText = document.getElementById('notion-text');
+                const warningBanner = document.getElementById('notion-warning-banner');
+
+                if (data.notion && data.notion.connected) {
+                    notionDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+                    notionText.textContent = data.notion.database_title ? `Notion: ${data.notion.database_title}` : 'Notion Conectado';
+                    warningBanner.classList.add('hidden');
+                    if (alertaManual) showToast('Notion Database conectado com sucesso!', 'success');
+                } else {
+                    notionDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+                    notionText.textContent = 'Notion Desconectado';
+                    warningBanner.classList.remove('hidden');
+                    if (alertaManual) showToast('Notion não conectado. Verifique o arquivo .env', 'error');
+                }
+
+                // Gemini Status
+                const geminiText = document.getElementById('gemini-text');
+                if (data.gemini && data.gemini.configured) {
+                    geminiText.textContent = 'Gemini 2.5 Flash';
+                } else {
+                    geminiText.textContent = 'Gemini (Template Mode)';
+                }
+
+            } catch (err) {
+                console.error("Erro ao checar status:", err);
+            }
+        }
+
+        // 2. Carregamento de Leads
+        async function carregarLeads() {
+            const grid = document.getElementById('leads-grid');
+            grid.innerHTML = `
+                <div class="col-span-full py-16 text-center space-y-3">
+                    <div class="animate-spin rounded-full h-8 w-8 border-2 border-brand-500 border-t-transparent mx-auto"></div>
+                    <p class="text-sm font-medium text-neutral-500">Consultando Notion Database...</p>
+                </div>
+            `;
+
+            try {
+                const res = await fetch('/api/leads');
+                const data = await res.json();
+                todosOsLeads = data.leads || [];
+                atualizarMetricas();
+                aplicarFiltrosLocais();
+            } catch (err) {
+                console.error("Erro ao carregar leads:", err);
+                grid.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-rose-600 text-sm font-semibold">
+                        Erro ao carregar leads do Notion: ${err.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 3. Atualização das Métricas
+        function atualizarMetricas() {
+            const total = todosOsLeads.length;
+            const tipoA = todosOsLeads.filter(l => (l.classificacao || '').includes('Tipo A')).length;
+            const tipoB = todosOsLeads.filter(l => (l.classificacao || '').includes('Tipo B')).length;
+            const fechadosOuPitch = todosOsLeads.filter(l => ['Pitch Gerado', 'Em Conversa', 'Fechado'].includes(l.status)).length;
+
+            document.getElementById('metric-total').textContent = total;
+            document.getElementById('metric-tipo-a').textContent = tipoA;
+            document.getElementById('metric-tipo-b').textContent = tipoB;
+            document.getElementById('metric-pitches').textContent = fechadosOuPitch;
+        }
+
+        // 4. Filtros Locais
+        function filtrarClassificacao(tipo) {
+            filtroClassificacaoAtual = tipo;
+            
+            // Atualiza botões
+            document.getElementById('tab-class-todos').className = `tab-btn px-4 py-2 rounded-xl text-xs font-bold transition ${tipo === 'todos' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'}`;
+            document.getElementById('tab-class-a').className = `tab-btn px-4 py-2 rounded-xl text-xs font-bold transition ${tipo === 'Tipo A' ? 'bg-purple-900 text-white' : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'}`;
+            document.getElementById('tab-class-b').className = `tab-btn px-4 py-2 rounded-xl text-xs font-bold transition ${tipo === 'Tipo B' ? 'bg-amber-900 text-white' : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'}`;
+
+            aplicarFiltrosLocais();
+        }
+
+        function filtrarPorStatus(statusVal) {
+            filtroStatusAtual = statusVal;
+            aplicarFiltrosLocais();
+        }
+
+        function aplicarFiltrosLocais() {
+            const termoTexto = (document.getElementById('filtro-texto').value || '').toLowerCase().trim();
+
+            let filtrados = todosOsLeads.filter(lead => {
+                // Filtro Classificação
+                if (filtroClassificacaoAtual !== 'todos') {
+                    if (!(lead.classificacao || '').includes(filtroClassificacaoAtual)) {
+                        return false;
+                    }
+                }
+                // Filtro Status
+                if (filtroStatusAtual !== 'Todos') {
+                    if (lead.status !== filtroStatusAtual) {
+                        return false;
+                    }
+                }
+                // Filtro Texto (Nome ou Bairro)
+                if (termoTexto) {
+                    const nome = (lead.nome || '').toLowerCase();
+                    const bairro = (lead.bairro || '').toLowerCase();
+                    if (!nome.includes(termoTexto) && !bairro.includes(termoTexto)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            renderizarGrid(filtrados);
+        }
+
+        // 5. Renderização dos Cards no Grid
+        function renderizarGrid(leads) {
+            const grid = document.getElementById('leads-grid');
+            const empty = document.getElementById('leads-empty');
+
+            if (leads.length === 0) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            grid.innerHTML = leads.map(lead => criarCardHTML(lead)).join('');
+        }
+
+        function criarCardHTML(lead) {
+            const isTipoA = (lead.classificacao || '').includes('Tipo A');
+            const badgeClass = isTipoA 
+                ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                : 'bg-amber-50 text-amber-700 border-amber-200';
+            
+            const badgeIcon = isTipoA ? '📱 Sem Site' : '⚠️ Site Obsoleto';
+
+            const statusColors = {
+                'Novo Lead': 'bg-blue-50 text-blue-700 border-blue-200',
+                'Pitch Gerado': 'bg-amber-50 text-amber-700 border-amber-200',
+                'Mensagem Enviada': 'bg-pink-50 text-pink-700 border-pink-200',
+                'Em Conversa': 'bg-purple-50 text-purple-700 border-purple-200',
+                'Fechado': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                'Descartado': 'bg-neutral-100 text-neutral-500 border-neutral-200'
+            };
+            const currentStatusColor = statusColors[lead.status] || 'bg-neutral-50 text-neutral-700 border-neutral-200';
+
+            const notaHTML = lead.nota 
+                ? `<div class="flex items-center gap-1 text-xs font-bold text-amber-600 bg-amber-50/80 px-2 py-0.5 rounded-md border border-amber-200/60">
+                     <span>★ ${lead.nota}</span>
+                     ${lead.qtd_reviews ? `<span class="text-neutral-400 font-normal">(${lead.qtd_reviews})</span>` : ''}
+                   </div>`
+                : '';
+
+            const waLink = lead.link_whatsapp || (lead.telefone ? `https://wa.me/55${lead.telefone.replace(/\D/g, '')}` : '');
+
+            return `
+                <div class="bg-white rounded-3xl p-6 border border-neutral-200/90 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-5">
+                    
+                    <!-- Topo do Card: Badges e Status -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <!-- Badge Classificação -->
+                            <span class="text-[11px] font-bold px-3 py-1 rounded-full border ${badgeClass}">
+                                ${badgeIcon}
+                            </span>
+                            
+                            <!-- Dropdown de Status do CRM -->
+                            <select onchange="atualizarStatusLead('${lead.id}', this.value)" class="text-[11px] font-bold px-2.5 py-1 rounded-full border ${currentStatusColor} focus:outline-none cursor-pointer">
+                                <option value="Novo Lead" ${lead.status === 'Novo Lead' ? 'selected' : ''}>Novo Lead</option>
+                                <option value="Pitch Gerado" ${lead.status === 'Pitch Gerado' ? 'selected' : ''}>Pitch Gerado</option>
+                                <option value="Mensagem Enviada" ${lead.status === 'Mensagem Enviada' ? 'selected' : ''}>Mensagem Enviada</option>
+                                <option value="Em Conversa" ${lead.status === 'Em Conversa' ? 'selected' : ''}>Em Conversa</option>
+                                <option value="Fechado" ${lead.status === 'Fechado' ? 'selected' : ''}>Fechado</option>
+                                <option value="Descartado" ${lead.status === 'Descartado' ? 'selected' : ''}>Descartado</option>
+                            </select>
+                        </div>
+
+                        <!-- Título e Nicho -->
+                        <div>
+                            <div class="flex items-start justify-between gap-2">
+                                <h3 class="font-serif text-lg font-bold text-neutral-900 leading-snug line-clamp-1" title="${lead.nome || ''}">
+                                    ${lead.nome || 'Sem Nome'}
+                                </h3>
+                                ${notaHTML}
+                            </div>
+                            <p class="text-xs text-neutral-500 font-medium mt-0.5">${lead.nicho || 'Estética'} • <span class="text-neutral-700">${lead.bairro || 'São Paulo'}</span></p>
+                        </div>
+
+                        <!-- Informações de Contato / Site -->
+                        <div class="text-xs space-y-1.5 pt-1 text-neutral-600">
+                            ${lead.telefone 
+                                ? `<div class="flex items-center gap-1.5 font-medium">
+                                     <span class="text-neutral-400">📞</span>
+                                     <span>${lead.telefone}</span>
+                                   </div>` 
+                                : '<div class="text-neutral-400 italic">Sem telefone informado</div>'}
+                            
+                            ${lead.website_original 
+                                ? `<div class="flex items-center gap-1.5 truncate">
+                                     <span class="text-neutral-400">🌐</span>
+                                     <a href="${lead.website_original}" target="_blank" class="text-neutral-600 hover:text-brand-600 truncate underline" title="${lead.website_original}">
+                                         ${lead.website_original.replace(/^https?:\/\//, '')}
+                                     </a>
+                                   </div>` 
+                                : `<div class="flex items-center gap-1.5 text-neutral-400">
+                                     <span>🌐</span>
+                                     <span class="italic">Sem site institucional</span>
+                                   </div>`}
+                        </div>
+                    </div>
+
+                    <!-- Botões de Ação do Card -->
+                    <div class="pt-4 border-t border-neutral-100 space-y-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Botão Gerar / Ver Pitch -->
+                            <button onclick="abrirPitchModal('${lead.id}')" id="btn-pitch-${lead.id}" class="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-bold transition">
+                                <span>✨</span>
+                                <span>${lead.pitch_whatsapp ? 'Ver Pitch' : 'Gerar Pitch'}</span>
+                            </button>
+
+                            <!-- Botão Gerar / Ver Demonstração -->
+                            <button onclick="abrirPreviewDemo('${lead.id}')" id="btn-demo-${lead.id}" class="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-brand-50 hover:bg-brand-100 text-brand-600 text-xs font-bold transition">
+                                <span>🎨</span>
+                                <span>${lead.has_demo ? 'Ver Demo' : 'Gerar Demo'}</span>
+                            </button>
+                        </div>
+
+                        <!-- Ações Rápidas: WhatsApp direto e Notion -->
+                        <div class="flex items-center justify-between text-[11px] pt-1">
+                            ${waLink ? `
+                                <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1">
+                                    <span>📲 Chamar no WhatsApp</span>
+                                </a>
+                            ` : `<span class="text-neutral-300">Sem WhatsApp</span>`}
+
+                            <a href="${lead.notion_url || '#'}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-800 font-medium flex items-center gap-1" title="Abrir registro direto no Notion Database">
+                                <span>Notion ↗</span>
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+            `;
+        }
+
+        // 6. Disparar Prospecção no Google Maps
+        async function iniciarProspeccao(event) {
+            event.preventDefault();
+
+            const nicho = document.getElementById('input-nicho').value.trim();
+            const localizacao = document.getElementById('input-localizacao').value.trim();
+            const limite = parseInt(document.getElementById('input-limite').value, 10);
+
+            const btn = document.getElementById('btn-prospectar');
+            const btnText = document.getElementById('btn-prospectar-text');
+            const spinner = document.getElementById('btn-prospectar-spinner');
+            const progresso = document.getElementById('prospeccao-progresso');
+
+            btn.disabled = true;
+            btnText.textContent = 'Extraindo no Google Maps...';
+            spinner.classList.remove('hidden');
+            progresso.classList.remove('hidden');
+            progresso.textContent = 'Iniciando navegador headless e buscando estabelecimentos...';
+
+            showToast(`Iniciando prospecção para "${nicho}" em "${localizacao}"...`, 'info');
+
+            try {
+                const res = await fetch('/api/prospectar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nicho, localizacao, limite })
+                });
+
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Falha na requisição de prospecção');
+                }
+
+                showToast(`Sucesso! ${data.total_extraidos} estabelecimentos extraídos e sincronizados com Notion.`, 'success');
+                await carregarLeads();
+
+            } catch (err) {
+                console.error("Erro na prospecção:", err);
+                showToast(`Erro na extração: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Buscar no Google Maps & Enviar ao Notion';
+                spinner.classList.add('hidden');
+                progresso.classList.add('hidden');
+            }
+        }
+
+        // 7. Atualizar Status do Lead no Notion
+        async function atualizarStatusLead(pageId, novoStatus) {
+            try {
+                const res = await fetch(`/api/leads/${pageId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: novoStatus })
+                });
+
+                if (!res.ok) {
+                    throw new Error('Falha ao atualizar no Notion');
+                }
+
+                // Atualiza localmente
+                const lead = todosOsLeads.find(l => l.id === pageId);
+                if (lead) {
+                    lead.status = novoStatus;
+                    atualizarMetricas();
+                }
+                showToast(`Status atualizado para "${novoStatus}" no Notion!`, 'success');
+            } catch (err) {
+                console.error("Erro ao atualizar status:", err);
+                showToast(`Erro ao atualizar status: ${err.message}`, 'error');
+            }
+        }
+
+        // 8. Modal de Pitch
+        async function abrirPitchModal(pageId) {
+            const lead = todosOsLeads.find(l => l.id === pageId);
+            if (!lead) return;
+
+            leadAtivoModal = lead;
+            document.getElementById('modal-pitch-nome').textContent = lead.nome || 'Estabelecimento';
+            document.getElementById('modal-pitch-sub').textContent = `${lead.nicho || 'Estética'} • ${lead.bairro || 'São Paulo'} • ${lead.classificacao || ''}`;
+
+            const textarea = document.getElementById('modal-pitch-textarea');
+
+            // Se já tem pitch gerado
+            if (lead.pitch_whatsapp) {
+                textarea.value = lead.pitch_whatsapp;
+                configurarLinkWhatsAppModal(lead, lead.pitch_whatsapp);
+            } else {
+                // Gera o pitch via API
+                textarea.value = "Gerando pitch consultivo com Inteligência Artificial Gemini...";
+                regerarPitchModal();
+            }
+
+            document.getElementById('modal-pitch').classList.remove('hidden');
+        }
+
+        async function regerarPitchModal() {
+            if (!leadAtivoModal) return;
+            const btnRegerar = document.getElementById('btn-modal-regerar');
+            const textarea = document.getElementById('modal-pitch-textarea');
+            
+            btnRegerar.classList.add('opacity-50', 'pointer-events-none');
+            textarea.value = "Aguarde, gerando pitch consultivo com Inteligência Artificial...";
+
+            try {
+                const res = await fetch(`/api/leads/${leadAtivoModal.id}/gerar-pitch`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Erro ao gerar pitch');
+
+                textarea.value = data.pitch;
+                leadAtivoModal.pitch_whatsapp = data.pitch;
+                leadAtivoModal.status = data.novo_status || 'Pitch Gerado';
+                
+                configurarLinkWhatsAppModal(leadAtivoModal, data.pitch);
+                atualizarMetricas();
+                aplicarFiltrosLocais();
+                showToast('Pitch gerado e salvo no Notion!', 'success');
+            } catch (err) {
+                textarea.value = `Erro ao gerar pitch: ${err.message}`;
+                showToast(err.message, 'error');
+            } finally {
+                btnRegerar.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        function configurarLinkWhatsAppModal(lead, textoPitch) {
+            const waBtn = document.getElementById('modal-pitch-wa-link');
+            const numeroLimpo = (lead.telefone || '').replace(/\D/g, '');
+            if (numeroLimpo) {
+                const telFormatado = numeroLimpo.startsWith('55') ? numeroLimpo : `55${numeroLimpo}`;
+                const encodedText = encodeURIComponent(textoPitch);
+                waBtn.href = `https://wa.me/${telFormatado}?text=${encodedText}`;
+                waBtn.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                waBtn.href = '#';
+                waBtn.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+
+        async function salvarPitchNoNotion() {
+            if (!leadAtivoModal) return;
+            const textarea = document.getElementById('modal-pitch-textarea');
+            const novoTexto = textarea.value.trim();
+
+            try {
+                const res = await fetch(`/api/leads/${leadAtivoModal.id}/pitch`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pitch: novoTexto })
+                });
+                if (!res.ok) throw new Error('Falha ao salvar no Notion');
+
+                leadAtivoModal.pitch_whatsapp = novoTexto;
+                configurarLinkWhatsAppModal(leadAtivoModal, novoTexto);
+                showToast('Pitch atualizado com sucesso no Notion!', 'success');
+            } catch (err) {
+                showToast(`Erro ao salvar pitch: ${err.message}`, 'error');
+            }
+        }
+
+        function copiarPitchModal() {
+            const textarea = document.getElementById('modal-pitch-textarea');
+            textarea.select();
+            navigator.clipboard.writeText(textarea.value);
+            
+            const btnText = document.getElementById('btn-copiar-text');
+            btnText.textContent = 'Copiado!';
+            setTimeout(() => { btnText.textContent = 'Copiar Mensagem'; }, 2000);
+            showToast('Mensagem copiada para a área de transferência!', 'success');
+        }
+
+        function fecharModalPitch() {
+            document.getElementById('modal-pitch').classList.add('hidden');
+            leadAtivoModal = null;
+        }
+
+        // 9. Modal de Demonstração / Preview
+        async function abrirPreviewDemo(pageId) {
+            const lead = todosOsLeads.find(l => l.id === pageId);
+            if (!lead) return;
+
+            const modal = document.getElementById('modal-preview');
+            const iframe = document.getElementById('preview-iframe');
+            const title = document.getElementById('preview-modal-title');
+            const newtabBtn = document.getElementById('btn-preview-newtab');
+
+            title.textContent = `Demonstração: ${lead.nome || 'Landing Page'}`;
+            newtabBtn.href = `/preview/${pageId}`;
+
+            // Se ainda não gerou o HTML, dispara geração
+            if (!lead.has_demo) {
+                showToast('Criando Landing Page personalizada com Gemini...', 'info');
+                try {
+                    const res = await fetch(`/api/leads/${pageId}/gerar-site`, { method: 'POST' });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || 'Falha ao gerar site');
+                    lead.has_demo = true;
+                    aplicarFiltrosLocais();
+                    showToast('Landing Page gerada e salva no Notion!', 'success');
+                } catch (err) {
+                    showToast(`Erro ao gerar site: ${err.message}`, 'error');
+                }
+            }
+
+            iframe.src = `/preview/${pageId}`;
+            modal.classList.remove('hidden');
+        }
+
+        function fecharModalPreview() {
+            document.getElementById('modal-preview').classList.add('hidden');
+            document.getElementById('preview-iframe').src = 'about:blank';
+        }
+
+        // 10. Modais de Ajuda
+        function abrirModalAjudaNotion() {
+            document.getElementById('modal-ajuda-notion').classList.remove('hidden');
+        }
+        function fecharModalAjudaNotion() {
+            document.getElementById('modal-ajuda-notion').classList.add('hidden');
+        }
+
+        // 11. Toast Notifications
+        function showToast(mensagem, tipo = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const cores = {
+                success: 'bg-emerald-900 text-white border-emerald-700',
+                error: 'bg-rose-900 text-white border-rose-700',
+                info: 'bg-neutral-900 text-white border-neutral-700'
+            };
+
+            toast.className = `${cores[tipo] || cores.info} border px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-2 pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0 max-w-sm`;
+            toast.innerHTML = `
+                <span>${tipo === 'success' ? '✓' : tipo === 'error' ? '✕' : 'ℹ'}</span>
+                <span>${mensagem}</span>
+            `;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
