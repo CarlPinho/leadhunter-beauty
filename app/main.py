@@ -85,7 +85,8 @@ class StatusUpdateRequest(BaseModel):
 
 
 class PitchUpdateRequest(BaseModel):
-    pitch: str = Field(..., description="Novo texto do pitch para salvar no Notion")
+    pitch: Optional[str] = Field(None, description="Novo texto do pitch para salvar no Notion")
+    copies: Optional[Dict[str, Any]] = Field(None, description="Dicionário com as variações de copies de WhatsApp")
 
 
 # --- Rotas da Aplicação ---
@@ -248,39 +249,71 @@ async def enviar_leads_para_notion(req: EnviarNotionRequest):
     }
 
 
+@app.post("/api/leads/{page_id}/gerar-copies")
 @app.post("/api/leads/{page_id}/gerar-pitch")
-async def gerar_pitch_lead(page_id: str):
-    """Gera o pitch consultivo com Gemini e salva na propriedade do Notion correspondente."""
+async def gerar_copies_lead(page_id: str):
+    """
+    Gera a Central de Copies de WhatsApp multivariada (4 variações) com Gemini,
+    salva na sessão/Notion e retorna o dicionário completo de copies.
+    """
     try:
         lead = _obter_lead_hibrido(page_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead não encontrado no Notion ou sessão")
 
-        # Gera o pitch via Gemini
-        pitch_texto = ai_service.gerar_pitch(lead)
+        # Se houver website e ainda não tiver sido extraído, tenta extrair conteúdo real
+        website = lead.get("website_original", "")
+        conteudo_site = lead.get("conteudo_extraido") or {}
+        if website and not conteudo_site:
+            try:
+                conteudo_site = extrair_conteudo_site(website)
+            except Exception:
+                pass
 
-        # Atualiza a propriedade "Pitch WhatsApp" e o status para "Pitch Gerado"
+        # Gera a Central de Copies com 4 variações
+        copies = ai_service.gerar_copies_whatsapp(lead, conteudo_extraido=conteudo_site)
+
+        # Monta texto padrão para propriedade de texto do Notion (curiosidade + follow up)
+        msg_curiosidade = copies.get("curiosidade", {}).get("mensagem", "")
+        msg_followup = copies.get("follow_up", {}).get("mensagem", "")
+        pitch_texto = f"{msg_curiosidade}\n\n---\n⏰ *Follow-up (24h se não responder):*\n{msg_followup}" if msg_followup else msg_curiosidade
+
         updates = {
+            "copies_whatsapp": copies,
             "pitch_whatsapp": pitch_texto,
             "status": "Pitch Gerado"
         }
+        if conteudo_site:
+            updates["conteudo_extraido"] = conteudo_site
+
         _atualizar_lead_hibrido(page_id, updates)
 
         return {
             "success": True,
             "page_id": page_id,
+            "copies": copies,
             "pitch": pitch_texto,
             "novo_status": "Pitch Gerado"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao gerar pitch: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar Central de Copies: {str(e)}")
 
 
 @app.put("/api/leads/{page_id}/pitch")
 async def salvar_pitch_manual(page_id: str, payload: PitchUpdateRequest):
-    """Atualiza o texto do pitch editado pelo usuário diretamente no Notion."""
+    """Atualiza o texto do pitch ou copies diretamente no Notion e na sessão."""
     try:
-        _atualizar_lead_hibrido(page_id, {"pitch_whatsapp": payload.pitch})
+        updates = {}
+        if payload.pitch:
+            updates["pitch_whatsapp"] = payload.pitch
+        if payload.copies:
+            updates["copies_whatsapp"] = payload.copies
+            if not payload.pitch and "curiosidade" in payload.copies:
+                c_msg = payload.copies["curiosidade"].get("mensagem", "")
+                f_msg = payload.copies.get("follow_up", {}).get("mensagem", "")
+                updates["pitch_whatsapp"] = f"{c_msg}\n\n---\n⏰ *Follow-up:*\n{f_msg}" if f_msg else c_msg
+
+        _atualizar_lead_hibrido(page_id, updates)
         return {"success": True, "page_id": page_id}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao salvar pitch no Notion: {str(e)}")

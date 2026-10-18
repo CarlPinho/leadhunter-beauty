@@ -330,13 +330,21 @@
 
     </main>
 
-    <!-- Modal de Pitch WhatsApp -->
-    <div id="modal-pitch" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-        <div class="bg-zinc-900 rounded-xl max-w-2xl w-full p-6 space-y-5 border border-zinc-800 shadow-2xl">
-            <div class="flex items-start justify-between">
+    <!-- Modal Central de Copies WhatsApp -->
+    <div id="modal-pitch" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-zinc-900 rounded-xl max-w-2xl w-full p-5 sm:p-6 space-y-4 border border-zinc-800 shadow-2xl">
+            <!-- Header do Modal -->
+            <div class="flex items-start justify-between gap-3">
                 <div>
-                    <span class="text-[10px] font-medium tracking-wider uppercase text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">Script WhatsApp de Alta Conversão</span>
-                    <h3 id="modal-pitch-nome" class="text-xl font-semibold text-zinc-100 mt-2">Nome do Lead</h3>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-medium tracking-wider uppercase text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">
+                            Central de Copies WhatsApp
+                        </span>
+                        <span class="text-[10px] font-medium tracking-wider text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700">
+                            4 Ângulos de Persuasão
+                        </span>
+                    </div>
+                    <h3 id="modal-pitch-nome" class="text-lg sm:text-xl font-semibold text-zinc-100 mt-2">Nome do Lead</h3>
                     <p id="modal-pitch-sub" class="text-xs text-zinc-400 mt-0.5">Personalizado para o perfil do estabelecimento</p>
                 </div>
                 <button onclick="fecharModalPitch()" class="text-zinc-400 hover:text-zinc-200 p-1 rounded-lg hover:bg-zinc-800 transition">
@@ -344,22 +352,52 @@
                 </button>
             </div>
 
-            <!-- Textarea do Pitch -->
+            <!-- Abas / Pills das 4 Variações de Copy -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-zinc-800 text-xs">
+                <button onclick="trocarAbaCopy('curiosidade')" id="tab-copy-curiosidade" class="tab-copy-btn px-3 py-1.5 rounded-lg font-medium transition bg-zinc-100 text-zinc-950 flex items-center gap-1.5 whitespace-nowrap shadow-xs">
+                    <span>🔥</span>
+                    <span>Demonstração Pronta</span>
+                </button>
+                <button onclick="trocarAbaCopy('concorrencia_perda')" id="tab-copy-concorrencia_perda" class="tab-copy-btn px-3 py-1.5 rounded-lg font-medium transition bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 hover:border-zinc-700 flex items-center gap-1.5 whitespace-nowrap">
+                    <span>📉</span>
+                    <span>Fuga de Clientes</span>
+                </button>
+                <button onclick="trocarAbaCopy('autoridade_luxo')" id="tab-copy-autoridade_luxo" class="tab-copy-btn px-3 py-1.5 rounded-lg font-medium transition bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 hover:border-zinc-700 flex items-center gap-1.5 whitespace-nowrap">
+                    <span>💎</span>
+                    <span>Posicionamento</span>
+                </button>
+                <button onclick="trocarAbaCopy('follow_up')" id="tab-copy-follow_up" class="tab-copy-btn px-3 py-1.5 rounded-lg font-medium transition bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 hover:border-zinc-700 flex items-center gap-1.5 whitespace-nowrap">
+                    <span>⏳</span>
+                    <span>Follow-up (24h)</span>
+                </button>
+            </div>
+
+            <!-- Área de Conteúdo da Copy Ativa -->
             <div class="space-y-2">
                 <div class="flex items-center justify-between text-xs text-zinc-400">
-                    <span class="font-medium">Mensagem sugerida (inclui 24h follow-up):</span>
-                    <button onclick="regerarPitchModal()" id="btn-modal-regerar" class="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-medium">
-                        <span>✨ Regerar com IA</span>
+                    <span id="modal-copy-titulo-angulo" class="font-medium text-zinc-300">🔥 Demonstração Pronta (Alta Curiosidade)</span>
+                    <button onclick="regerarCopiesModal()" id="btn-modal-regerar" class="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-medium">
+                        <span>✨ Regerar Copies com IA</span>
                     </button>
                 </div>
-                <textarea id="modal-pitch-textarea" rows="9" class="w-full p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm leading-relaxed text-zinc-200 focus:outline-none focus:border-zinc-700 font-sans resize-none"></textarea>
+                <div class="relative">
+                    <textarea id="modal-pitch-textarea" oninput="atualizarTextoCopyAtiva(this.value)" rows="8" class="w-full p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs sm:text-sm leading-relaxed text-zinc-200 focus:outline-none focus:border-zinc-700 font-sans resize-none"></textarea>
+                    <div id="modal-copies-loading" class="hidden absolute inset-0 bg-zinc-950/90 rounded-xl flex flex-col items-center justify-center space-y-2 text-white">
+                        <div class="animate-spin rounded-full h-5 w-5 border-2 border-emerald-500 border-t-transparent"></div>
+                        <p class="text-xs font-medium text-zinc-300">Gerando 4 variações persuasivas com Gemini...</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-zinc-500">
+                    <span>💡 3 a 4 linhas no WhatsApp • Focado em permissão de 1 min</span>
+                    <span>Edições manuais salvas ao trocar de aba</span>
+                </div>
             </div>
 
             <!-- Ações do Modal -->
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2 border-t border-zinc-800/80">
                 <button onclick="copiarPitchModal()" id="btn-copiar-pitch" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-zinc-800 bg-zinc-850 hover:bg-zinc-800 text-xs font-medium text-zinc-200 transition">
                     <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                    <span id="btn-copiar-text">Copiar Mensagem</span>
+                    <span id="btn-copiar-text">Copiar Esta Copy</span>
                 </button>
 
                 <div class="flex items-center gap-2">
@@ -974,10 +1012,10 @@
                     <!-- Botões de Ação do Card -->
                     <div class="pt-3 border-t border-zinc-800/80 space-y-2">
                         <div class="grid grid-cols-2 gap-2">
-                            <!-- Botão Gerar / Ver Pitch -->
+                            <!-- Botão Central de Copies WhatsApp -->
                             <button onclick="abrirPitchModal('${lead.id}')" id="btn-pitch-${lead.id}" class="w-full inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-zinc-800 hover:bg-zinc-750 text-zinc-200 text-xs font-medium border border-zinc-700/60 transition">
-                                <span class="text-emerald-400">✨</span>
-                                <span>${lead.pitch_whatsapp ? 'Ver Pitch' : 'Gerar Pitch'}</span>
+                                <span class="text-emerald-400">💬</span>
+                                <span>${(lead.copies_whatsapp || lead.pitch_whatsapp) ? 'Copies WhatsApp' : 'Gerar Copies'}</span>
                             </button>
 
                             <!-- Botão Gerar Prompt AI Studio -->
@@ -1157,7 +1195,17 @@
             }
         }
 
-        // 13. Modal de Pitch (WhatsApp)
+        // 13. Central de Copies de WhatsApp (Multivariada)
+        let abaCopyAtiva = 'curiosidade';
+        let copiesAtivas = null;
+
+        const TITULOS_ABAS_COPIES = {
+            'curiosidade': '🔥 Demonstração Pronta (Alta Curiosidade)',
+            'concorrencia_perda': '📉 Fuga de Clientes (Alerta de Vendas)',
+            'autoridade_luxo': '💎 Posicionamento & Tradição',
+            'follow_up': '⏳ Follow-up (Retomada em 24h)'
+        };
+
         async function abrirPitchModal(pageId) {
             const lead = todosOsLeads.find(l => l.id === pageId);
             if (!lead) return;
@@ -1167,62 +1215,133 @@
             document.getElementById('modal-pitch-sub').textContent = `${lead.nicho || 'Estética'} • ${lead.bairro || 'São Paulo'} • ${lead.classificacao || ''}`;
 
             const textarea = document.getElementById('modal-pitch-textarea');
+            abaCopyAtiva = 'curiosidade';
 
-            // Se já tem pitch gerado
-            if (lead.pitch_whatsapp) {
-                textarea.value = lead.pitch_whatsapp;
-                configurarLinkWhatsAppModal(lead, lead.pitch_whatsapp);
+            // Se o lead já possui copies estruturadas salvas
+            if (lead.copies_whatsapp && typeof lead.copies_whatsapp === 'object' && lead.copies_whatsapp.curiosidade) {
+                copiesAtivas = JSON.parse(JSON.stringify(lead.copies_whatsapp));
+                renderizarAbaAtivaCopy();
+            } else if (lead.pitch_whatsapp && !lead.copies_whatsapp) {
+                // Se já tinha um pitch antigo gerado, carrega temporariamente e gera as 4 variações
+                copiesAtivas = {
+                    curiosidade: { titulo: '🔥 Demonstração Pronta (Alta Curiosidade)', mensagem: lead.pitch_whatsapp },
+                    concorrencia_perda: { titulo: '📉 Fuga de Clientes (Alerta de Vendas)', mensagem: '' },
+                    autoridade_luxo: { titulo: '💎 Posicionamento & Tradição', mensagem: '' },
+                    follow_up: { titulo: '⏳ Follow-up (Retomada)', mensagem: '' }
+                };
+                renderizarAbaAtivaCopy();
+                regerarCopiesModal();
             } else {
-                // Gera o pitch via API
-                textarea.value = "Gerando pitch consultivo com Inteligência Artificial Gemini...";
-                regerarPitchModal();
+                // Novo lead sem copies
+                textarea.value = "Gerando 4 abordagens persuasivas com Inteligência Artificial...";
+                regerarCopiesModal();
             }
 
             document.getElementById('modal-pitch').classList.remove('hidden');
         }
 
-        async function regerarPitchModal() {
+        function renderizarAbaAtivaCopy() {
+            if (!copiesAtivas) return;
+            const textarea = document.getElementById('modal-pitch-textarea');
+            const tituloAngulo = document.getElementById('modal-copy-titulo-angulo');
+
+            // Atualiza botões das abas
+            const abas = ['curiosidade', 'concorrencia_perda', 'autoridade_luxo', 'follow_up'];
+            abas.forEach(aba => {
+                const btn = document.getElementById(`tab-copy-${aba}`);
+                if (!btn) return;
+                if (aba === abaCopyAtiva) {
+                    btn.className = 'tab-copy-btn px-3 py-1.5 rounded-lg font-medium transition bg-zinc-100 text-zinc-950 flex items-center gap-1.5 whitespace-nowrap shadow-xs';
+                } else {
+                    btn.className = 'tab-copy-btn px-3 py-1.5 rounded-lg font-medium transition bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200 hover:border-zinc-700 flex items-center gap-1.5 whitespace-nowrap';
+                }
+            });
+
+            // Atualiza título e texto da mensagem
+            const copyObj = copiesAtivas[abaCopyAtiva] || {};
+            const texto = copyObj.mensagem || '';
+            const titulo = copyObj.titulo || TITULOS_ABAS_COPIES[abaCopyAtiva] || 'Copy WhatsApp';
+
+            if (tituloAngulo) tituloAngulo.textContent = titulo;
+            if (textarea) textarea.value = texto;
+
+            configurarLinkWhatsAppModal(leadAtivoModal, texto);
+        }
+
+        function trocarAbaCopy(chave) {
+            const textarea = document.getElementById('modal-pitch-textarea');
+            // Preserva edição manual na aba que estava aberta
+            if (copiesAtivas && copiesAtivas[abaCopyAtiva]) {
+                copiesAtivas[abaCopyAtiva].mensagem = textarea.value;
+            }
+
+            abaCopyAtiva = chave;
+            renderizarAbaAtivaCopy();
+        }
+
+        function atualizarTextoCopyAtiva(val) {
+            if (copiesAtivas && copiesAtivas[abaCopyAtiva]) {
+                copiesAtivas[abaCopyAtiva].mensagem = val;
+            }
+            configurarLinkWhatsAppModal(leadAtivoModal, val);
+        }
+
+        async function regerarCopiesModal() {
             if (!leadAtivoModal) return;
             const btnRegerar = document.getElementById('btn-modal-regerar');
             const textarea = document.getElementById('modal-pitch-textarea');
+            const loading = document.getElementById('modal-copies-loading');
             
             btnRegerar.classList.add('opacity-50', 'pointer-events-none');
-            textarea.value = "Aguarde, gerando pitch consultivo com Inteligência Artificial...";
+            if (loading) loading.classList.remove('hidden');
 
             try {
-                const res = await fetch(`/api/leads/${leadAtivoModal.id}/gerar-pitch`, { method: 'POST' });
+                const res = await fetch(`/api/leads/${leadAtivoModal.id}/gerar-copies`, { method: 'POST' });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.detail || 'Erro ao gerar pitch');
+                if (!res.ok) throw new Error(data.detail || 'Erro ao gerar Central de Copies');
 
-                textarea.value = data.pitch;
+                copiesAtivas = data.copies;
+                leadAtivoModal.copies_whatsapp = data.copies;
                 leadAtivoModal.pitch_whatsapp = data.pitch;
                 leadAtivoModal.status = data.novo_status || 'Pitch Gerado';
                 
-                configurarLinkWhatsAppModal(leadAtivoModal, data.pitch);
+                renderizarAbaAtivaCopy();
+
+                // Atualiza label do botão no card
+                const btnCard = document.getElementById(`btn-pitch-${leadAtivoModal.id}`);
+                if (btnCard) {
+                    btnCard.innerHTML = `<span class="text-emerald-400">💬</span><span>Copies WhatsApp</span>`;
+                }
+
                 atualizarMetricas();
                 aplicarFiltrosLocais();
-                showToast(leadAtivoModal.synced_notion ? 'Pitch gerado e salvo no Notion!' : 'Pitch gerado com Gemini no buffer!', 'success');
+                showToast(leadAtivoModal.synced_notion ? '4 Copies geradas e salvas no Notion!' : '4 Copies geradas no buffer local!', 'success');
             } catch (err) {
-                textarea.value = `Erro ao gerar pitch: ${err.message}`;
+                textarea.value = `Erro ao gerar copies: ${err.message}`;
                 showToast(err.message, 'error');
             } finally {
                 btnRegerar.classList.remove('opacity-50', 'pointer-events-none');
+                if (loading) loading.classList.add('hidden');
             }
         }
 
-        function configurarLinkWhatsAppModal(lead, textoPitch) {
+        // Mantém alias para compatibilidade
+        const regerarPitchModal = regerarCopiesModal;
+
+        function configurarLinkWhatsAppModal(lead, textoCopy) {
             const waBtn = document.getElementById('modal-pitch-wa-link');
+            if (!lead) return;
             const numeroLimpo = (lead.telefone || '').replace(/\D/g, '');
             if (numeroLimpo) {
                 const telFormatado = numeroLimpo.startsWith('55') ? numeroLimpo : `55${numeroLimpo}`;
-                // Separa apenas a mensagem inicial caso haja bloco de follow-up
-                let mensagemInicial = textoPitch;
-                if (textoPitch.includes('---')) {
-                    mensagemInicial = textoPitch.split('---')[0].trim();
-                } else if (textoPitch.includes('⏰ *Follow-up')) {
-                    mensagemInicial = textoPitch.split('⏰ *Follow-up')[0].trim();
+                // Se a copy tiver divisor '---' ou '⏰', usa apenas a mensagem antes dele
+                let mensagemFormatada = textoCopy || '';
+                if (mensagemFormatada.includes('---')) {
+                    mensagemFormatada = mensagemFormatada.split('---')[0].trim();
+                } else if (mensagemFormatada.includes('⏰ *Follow-up')) {
+                    mensagemFormatada = mensagemFormatada.split('⏰ *Follow-up')[0].trim();
                 }
-                const encodedText = encodeURIComponent(mensagemInicial);
+                const encodedText = encodeURIComponent(mensagemFormatada);
                 waBtn.href = `https://wa.me/${telFormatado}?text=${encodedText}`;
                 waBtn.classList.remove('opacity-50', 'pointer-events-none');
             } else {
@@ -1234,21 +1353,29 @@
         async function salvarPitchNoNotion() {
             if (!leadAtivoModal) return;
             const textarea = document.getElementById('modal-pitch-textarea');
-            const novoTexto = textarea.value.trim();
+            const textoAtual = textarea.value.trim();
+
+            if (copiesAtivas && copiesAtivas[abaCopyAtiva]) {
+                copiesAtivas[abaCopyAtiva].mensagem = textoAtual;
+            }
 
             try {
                 const res = await fetch(`/api/leads/${leadAtivoModal.id}/pitch`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pitch: novoTexto })
+                    body: JSON.stringify({
+                        pitch: textoAtual,
+                        copies: copiesAtivas
+                    })
                 });
-                if (!res.ok) throw new Error('Falha ao salvar o pitch');
+                if (!res.ok) throw new Error('Falha ao salvar copies no Notion');
 
-                leadAtivoModal.pitch_whatsapp = novoTexto;
-                configurarLinkWhatsAppModal(leadAtivoModal, novoTexto);
-                showToast(leadAtivoModal.synced_notion ? 'Pitch atualizado com sucesso no Notion!' : 'Pitch salvo no buffer local!', 'success');
+                leadAtivoModal.pitch_whatsapp = textoAtual;
+                leadAtivoModal.copies_whatsapp = copiesAtivas;
+                configurarLinkWhatsAppModal(leadAtivoModal, textoAtual);
+                showToast(leadAtivoModal.synced_notion ? 'Copies atualizadas com sucesso no Notion!' : 'Copies salvas no buffer local!', 'success');
             } catch (err) {
-                showToast(`Erro ao salvar pitch: ${err.message}`, 'error');
+                showToast(`Erro ao salvar copies: ${err.message}`, 'error');
             }
         }
 
@@ -1259,8 +1386,8 @@
             
             const btnText = document.getElementById('btn-copiar-text');
             btnText.textContent = 'Copiado!';
-            setTimeout(() => { btnText.textContent = 'Copiar Mensagem'; }, 2000);
-            showToast('Mensagem copiada para a área de transferência!', 'success');
+            setTimeout(() => { btnText.textContent = 'Copiar Esta Copy'; }, 2000);
+            showToast('Copy copiada para a área de transferência!', 'success');
         }
 
         function fecharModalPitch() {

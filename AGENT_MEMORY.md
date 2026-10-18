@@ -117,17 +117,23 @@ A interface SPA (`app/templates/index.html`) adota um design sóbrio, minimalist
 
 ---
 
-## 💬 Motor de Cópias de WhatsApp (Alta Conversão em vez de "Textão")
-Implementado em `app/ai_service.py` (`gerar_copy_whatsapp` e `gerar_pitch`):
-- **Formato:** Máximo de 3 a 4 linhas no WhatsApp, tom humano e consultivo sem jargões corporativos.
-- **Estrutura Obrigatória em 3 Passos:**
-  1. *Quebra de padrão:* Elogio sincero à reputação e avaliações no Google Maps.
-  2. *Apontamento cirúrgico da dor:*
-     - **Tipo A:** Perda de agendamentos por depender exclusivamente de Instagram/WhatsApp sem página própria.
-     - **Tipo B:** Desistência de clientes devido à lentidão ou falta de adaptação móvel do site atual.
-  3. *CTA de baixo atrito:* Pergunta leve de permissão ("Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?").
-- **Follow-up Automático (24h):** Mensagem rápida de reconexão incluída no retorno para acompanhamento do prospect.
-- **Abertura Inteligente:** No modal do WhatsApp, o link `wa.me` codifica apenas a mensagem principal, deixando o follow-up visível para consulta.
+## 💬 Central de Copies de WhatsApp (Multivariada com 4 Ângulos)
+Implementado em `app/ai_service.py` (`gerar_copies_whatsapp`) com interface interativa por abas no modal:
+- **Formato:** Máximo de 3 a 4 linhas no WhatsApp por mensagem, tom humano e consultivo sem jargões corporativos.
+- **Regra de Ouro Anti-Alucinação:** Proibido inventar preços em R$, tratamentos invasivos ou dados não comprovados. Utiliza o nome real (ou primeiro nome) e o bairro extraído do Maps.
+- **4 Ângulos de Persuasão Gerados Simultaneamente (JSON estruturado):**
+  1. **🔥 Demonstração Pronta (Alta Curiosidade):** Foco em despertar o desejo de ver o protótipo de 1 minuto criado exclusivamente para o espaço.
+  2. **📉 Fuga de Clientes (Alerta de Vendas):** Tom consultivo mostrando que buscas diárias no Google pelo bairro estão caindo na concorrência por atrito/ausência de site.
+  3. **💎 Posicionamento & Tradição:** Valorização da autoridade e reputação no Google Maps, destacando que a presença digital precisa estar à altura do atendimento.
+  4. **⏳ Follow-up (Retomada em 24h):** Mensagem leve e descontraída para enviar 24h após o primeiro contato sem resposta.
+- **CTA de Baixo Atrito:** As 3 primeiras abordagens encerram com a pergunta de permissão: *"Posso te mandar o link de 1 min aqui?"*.
+- **Experiência na UI (`app/templates/index.html`):**
+  - Modal com pills/abas para alternar instantaneamente entre os 4 ângulos.
+  - Preservação de edições manuais ao alternar entre as abas.
+  - Botão **"📋 Copiar Esta Copy"** com feedback visual dinâmico.
+  - Botão **"🟢 Abrir no WhatsApp"** que monta a URL `wa.me` com o texto da aba ativa dinamicamente.
+  - Botão **"✨ Regerar Copies com IA"** que chama `POST /api/leads/{id}/gerar-copies`.
+  - Compatibilidade com o campo `Pitch WhatsApp` no Notion e cache de sessão.
 
 ---
 

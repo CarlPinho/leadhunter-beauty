@@ -5,8 +5,9 @@ LeadHunter Beauty.
 
 import os
 import re
+import json
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 
 try:
     from dotenv import load_dotenv
@@ -42,6 +43,26 @@ def _clean_markdown_code(content: str) -> str:
     return text.strip()
 
 
+def _extrair_json(texto: str) -> dict:
+    """Extrai e faz parsing de um dicionário JSON retornado pelo modelo."""
+    if not texto:
+        return {}
+    t = texto.strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z]*\n?", "", t)
+        t = re.sub(r"\n?```$", "", t).strip()
+    try:
+        return json.loads(t)
+    except Exception:
+        match = re.search(r"\{.*\}", t, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except Exception:
+                pass
+    return {}
+
+
 class AIService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
@@ -59,59 +80,100 @@ class AIService:
     def is_configured(self) -> bool:
         return bool(self.api_key and "xxx" not in self.api_key)
 
-    def gerar_copy_whatsapp(self, lead: dict) -> str:
+    def gerar_copies_whatsapp(self, lead: dict, conteudo_extraido: Optional[dict] = None) -> dict:
         """
-        Gera uma abordagem curta, humana e de alta conversão para WhatsApp (máx 3-4 linhas)
-        com 3 passos cirúrgicos e script de follow-up para 24h.
+        Gera uma Central de Copies multivariada para WhatsApp com 4 ângulos persuasivos
+        retornando um dicionário estruturado com:
+        - curiosidade: Demonstração Pronta (Alta Curiosidade)
+        - concorrencia_perda: Fuga de Clientes (Alerta de Vendas)
+        - autoridade_luxo: Posicionamento & Tradição
+        - follow_up: Follow-up (Retomada em 24h)
         """
         nome = lead.get("nome", "Espaço")
+        palavras = (nome or "").split()
+        if len(palavras) > 1 and palavras[0].lower() in ["studio", "salão", "salao", "clínica", "clinica", "espaço", "espaco", "instituto", "ateliê", "atelie", "barbearia"]:
+            primeiro_nome = palavras[1]
+        elif palavras:
+            primeiro_nome = palavras[0]
+        else:
+            primeiro_nome = "pessoal"
         nicho = lead.get("nicho", "Estética e Beleza")
         bairro = lead.get("bairro", "")
         nota = lead.get("nota", "5.0")
         reviews = lead.get("qtd_reviews", "várias")
         classificacao = lead.get("classificacao", "Tipo A (Sem Site)")
         site = lead.get("website_original", "")
-        is_tipo_b = "Tipo B" in str(classificacao) or bool(site)
+        conteudo = conteudo_extraido or lead.get("conteudo_extraido") or {}
+        is_tipo_b = "Tipo B" in str(classificacao) or bool(site and conteudo.get("tem_conteudo"))
 
-        dor_orientacao = (
-            'Dor para Tipo A (Sem site): "Vi que vocês têm excelentes avaliações no Google, mas ainda não têm uma página própria para receber os agendamentos direto no WhatsApp, dependendo só do Insta."'
-            if not is_tipo_b else
-            'Dor para Tipo B (Site obsoleto/lento): "Vi que vocês recebem clientes pelo Google, mas o site atual tem lentidão/atrito no celular, o que faz muita gente desistir antes de chamar no Zap."'
-        )
+        diferenciais_reais = conteudo.get("diferenciais_detectados") or []
+        info_diferenciais = f"- Diferenciais Reais Declarados: {'; '.join(diferenciais_reais[:3])}" if diferenciais_reais else ""
 
-        prompt = f"""Você é um especialista em vendas consultivas e prospecção direta via WhatsApp para negócios locais.
+        if not is_tipo_b:
+            dor_contexto = (
+                "LEAD TIPO A (SEM SITE PRÓPRIO):\n"
+                "- Dor central: Dependência exclusiva do Instagram/WhatsApp, falta de autoridade própria no Google e fuga de clientes que buscam no Maps com intenção imediata de agendamento."
+            )
+        else:
+            dor_contexto = (
+                f"LEAD TIPO B (SITE LEGADO/OBSOLETO: {site}):\n"
+                "- Dor central: O site atual tem carregamento lento, atrito no celular e não converte visitantes em chamadas no WhatsApp, fazendo o cliente perder agendamentos para concorrentes locais."
+            )
+
+        prompt = f"""Você é um copywriter sênior e estrategista de vendas consultivas via WhatsApp para negócios locais.
 {self.system_prompt}
 
-Crie uma mensagem curta de prospecção e um follow-up de 24h para o estabelecimento abaixo:
-- Nome: {nome}
-- Nicho: {nicho}
-- Localização/Bairro: {bairro}
+Crie 4 abordagens distintas de prospecção via WhatsApp (Central de Copies) para o seguinte estabelecimento:
+- Nome do Estabelecimento: {nome}
+- Primeiro Nome / Tratamento: {primeiro_nome}
+- Nicho de Atuação: {nicho}
+- Localização / Bairro: {bairro if bairro else 'São Paulo - SP'}
 - Avaliação Google Maps: {nota} estrelas ({reviews} avaliações)
 - Classificação: {classificacao}
-- Link atual: {site if site else "Sem site próprio"}
+- Website Atual: {site if site else "Nenhum (usa apenas rede social)"}
+{info_diferenciais}
 
-DIRETRIZES ESTRITAS (SEM "TEXTÃO", MÁXIMA CONVERSÃO):
-1. A mensagem de primeiro contato DEVE ser curta, humana, sem jargões corporativos e direto ao ponto (máximo de 3 a 4 linhas no WhatsApp).
-2. Estrutura obrigatória de 3 passos na mensagem principal:
-   Passo 1: Quebra de padrão rápida e elogio sincero à reputação local no Maps (mencionando o nome e as avaliações no Google).
-   Passo 2: Apontamento cirúrgico da dor:
-     {dor_orientacao}
-   Passo 3: Chamada para ação de baixo atrito (apenas permissão):
-     "Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?"
-3. Follow-up de 24h:
-   - Uma mensagem rápida, simpática e leve de 1 ou 2 linhas caso o lead não responda em 24h (ex: "Opa {nome}, tudo bem? Imagino que a rotina aí esteja corrida! Conseguiu ver a mensagem anterior sobre a prévia de 1 min?").
+DIRETRIZES DE NEGÓCIO E DOR:
+{dor_contexto}
 
-FORMATO DO RETORNO:
-Retorne no seguinte formato exato (sem explicações adicionais fora dele):
-[Mensagem Principal de 3 a 4 linhas]
+REGRAS CRUCIAIS PARA AS COPIES (SEM 'TEXTÃO', MÁXIMA CONVERSÃO):
+1. Cada mensagem principal DEVE ser curta, humana e direta (máximo de 3 a 4 linhas no WhatsApp).
+2. Sem formalismos antiquados (evite 'Prezados', 'Venho por meio deste', 'Espero que este e-mail/mensagem o encontre bem').
+3. Regra Anti-Alucinação: NUNCA invente preços em R$ ou tratamentos médicos que não foram informados.
+4. Use o nome do estabelecimento (ou primeiro nome) e o bairro real ({bairro if bairro else 'São Paulo'}).
+5. As 3 primeiras mensagens (curiosidade, concorrencia_perda, autoridade_luxo) DEVEM finalizar com a chamada para ação de permissão e baixo atrito:
+   "Posso te mandar o link de 1 min aqui?"
+6. A 4ª mensagem (follow_up) deve ser um lembrete rápido, educado e simpático de 1 a 2 linhas para 24h após o primeiro contato sem resposta.
 
----
-⏰ *Follow-up (24h se não responder):*
-[Texto do follow-up]
-"""
+ESTRUTURA DAS 4 VARIAÇÕES:
+- "curiosidade": Quebra de padrão rápida + elogio genuíno à reputação no Maps + gancho de que você desenhou um protótipo exclusivo para o espaço deles.
+- "concorrencia_perda": Alerta consultivo mostrando que clientes do bairro buscam no Google todos os dias e acabam agendando em outros salões pela falta de agendamento ágil no WhatsApp.
+- "autoridade_luxo": Valorização da autoridade e do padrão de atendimento deles, apontando que o posicionamento digital atual precisa estar à altura da reputação do espaço.
+- "follow_up": Mensagem leve para 24h depois caso não respondam ("Opa {primeiro_nome}, tudo bem? Imagino a correria aí...").
+
+FORMATO OBRIGATÓRIO DE RETORNO:
+Retorne EXCLUSIVAMENTE um objeto JSON válido (sem texto ou markdown fences fora dele) no formato exato:
+{{
+  "curiosidade": {{
+    "titulo": "🔥 Demonstração Pronta (Alta Curiosidade)",
+    "mensagem": "..."
+  }},
+  "concorrencia_perda": {{
+    "titulo": "📉 Fuga de Clientes (Alerta de Vendas)",
+    "mensagem": "..."
+  }},
+  "autoridade_luxo": {{
+    "titulo": "💎 Posicionamento & Tradição",
+    "mensagem": "..."
+  }},
+  "follow_up": {{
+    "titulo": "⏳ Follow-up (Retomada)",
+    "mensagem": "..."
+  }}
+}}"""
 
         if not self.is_configured():
-            return self._gerar_pitch_fallback(lead)
+            return self._gerar_copies_fallback(lead, conteudo_extraido)
 
         try:
             models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
@@ -123,18 +185,43 @@ Retorne no seguinte formato exato (sem explicações adicionais fora dele):
                         contents=prompt
                     )
                     if response and response.text:
-                        return response.text.strip()
+                        parsed = _extrair_json(response.text)
+                        if (
+                            isinstance(parsed, dict)
+                            and "curiosidade" in parsed
+                            and "concorrencia_perda" in parsed
+                            and "autoridade_luxo" in parsed
+                            and "follow_up" in parsed
+                        ):
+                            valido = True
+                            for k in ["curiosidade", "concorrencia_perda", "autoridade_luxo", "follow_up"]:
+                                if not isinstance(parsed[k], dict) or not parsed[k].get("mensagem"):
+                                    valido = False
+                                    break
+                            if valido:
+                                return parsed
                 except Exception as ex:
                     last_error = ex
                     continue
-            raise last_error or RuntimeError("Não foi possível gerar copy com nenhum modelo.")
+            logger.warning(f"Fallback acionado para Central de Copies: {last_error}")
+            return self._gerar_copies_fallback(lead, conteudo_extraido)
         except Exception as e:
-            logger.error(f"Erro ao gerar copy do WhatsApp com Gemini: {e}")
-            return self._gerar_pitch_fallback(lead)
+            logger.error(f"Erro ao gerar Central de Copies com Gemini: {e}")
+            return self._gerar_copies_fallback(lead, conteudo_extraido)
+
+    def gerar_copy_whatsapp(self, lead: dict) -> str:
+        """Retorna a copy principal com follow-up para manter compatibilidade com chamadas de texto único."""
+        copies = self.gerar_copies_whatsapp(lead)
+        msg_principal = copies.get("curiosidade", {}).get("mensagem", "")
+        follow_up = copies.get("follow_up", {}).get("mensagem", "")
+        if follow_up:
+            return f"{msg_principal}\n\n---\n⏰ *Follow-up (24h se não responder):*\n{follow_up}"
+        return msg_principal
 
     def gerar_pitch(self, lead: dict) -> str:
         """Alias para manter compatibilidade com rotas de API existentes."""
         return self.gerar_copy_whatsapp(lead)
+
 
     def gerar_prompt_ai_studio(self, lead: dict, conteudo_extraido: Optional[dict] = None) -> str:
         """
@@ -353,35 +440,93 @@ ESPECIFICAÇÕES TÉCNICAS E DE DESIGN OBRIGATÓRIAS:
             logger.error(f"Erro ao gerar landing page com Gemini: {e}")
             return self._gerar_landing_fallback(lead)
 
-    def _gerar_pitch_fallback(self, lead: dict) -> str:
-        """Script de vendas curto e conversacional para WhatsApp (fallback sem IA)."""
+    def _gerar_copies_fallback(self, lead: dict, conteudo_extraido: Optional[dict] = None) -> dict:
+        """Gera as 4 variações da Central de Copies de WhatsApp como fallback de alta conversão."""
         nome = lead.get("nome", "Espaço")
+        palavras = (nome or "").split()
+        if len(palavras) > 1 and palavras[0].lower() in ["studio", "salão", "salao", "clínica", "clinica", "espaço", "espaco", "instituto", "ateliê", "atelie", "barbearia"]:
+            primeiro_nome = palavras[1]
+        elif palavras:
+            primeiro_nome = palavras[0]
+        else:
+            primeiro_nome = "pessoal"
         nicho = lead.get("nicho", "estética")
-        bairro = f" no {lead['bairro']}" if lead.get("bairro") else ""
+        bairro = lead.get("bairro") or "São Paulo"
+        bairro_str = f" em {bairro}" if lead.get("bairro") else " em São Paulo"
         nota = lead.get("nota", "5.0")
         reviews = lead.get("qtd_reviews", "várias")
         classificacao = lead.get("classificacao", "Tipo A (Sem Site)")
-        is_tipo_b = "Tipo B" in str(classificacao)
+        site = lead.get("website_original", "")
+        conteudo = conteudo_extraido or lead.get("conteudo_extraido") or {}
+        is_tipo_b = "Tipo B" in str(classificacao) or bool(site and conteudo.get("tem_conteudo"))
 
         if not is_tipo_b:
-            msg_principal = (
-                f"Oi, tudo bem? Vi o trabalho impecável de vocês no *{nome}*{bairro} no Google — nota {nota} com {reviews} avaliações, parabéns!\n\n"
+            # Tipo A: Sem site próprio
+            msg_curiosidade = (
+                f"Oi, tudo bem? Vi o trabalho impecável de vocês no *{nome}*{bairro_str} no Google — nota {nota} com {reviews} avaliações, parabéns!\n\n"
                 f"Vi que vocês têm excelentes avaliações no Google, mas ainda não têm uma página própria para receber os agendamentos direto no WhatsApp, dependendo só do Insta.\n\n"
                 f"Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?"
             )
+            msg_concorrencia = (
+                f"Oi, tudo bem? Estava pesquisando serviços de {nicho} em {bairro} e o *{nome}* se destaca muito pela reputação no Maps ({nota} ⭐).\n\n"
+                f"Mas notei que sem uma página rápida com botão direto de Zap, muita gente que busca no Google acaba caindo em outros espaços do bairro por falta de agendamento ágil.\n\n"
+                f"Desenhei uma solução simples de 1 minuto para reter esses agendamentos direto no seu WhatsApp. Posso te mandar o link aqui?"
+            )
+            msg_autoridade = (
+                f"Oi, tudo bem? Acompanho a excelência do *{nome}*{bairro_str} e o padrão de atendimento de vocês no Google é referência ({reviews} avaliações reais).\n\n"
+                f"Vocês já têm a autoridade, mas ainda falta um espaço digital oficial à altura da marca para transformar essas buscas no Maps em agendamentos qualificados no Zap.\n\n"
+                f"Criei uma prévia visual exclusiva com design de alto padrão para o {nome}. Posso te mandar o link de 1 min aqui?"
+            )
         else:
-            msg_principal = (
-                f"Oi, tudo bem? Vi o trabalho impecável de vocês no *{nome}*{bairro} no Google — nota {nota} com {reviews} avaliações, parabéns!\n\n"
-                f"Vi que vocês recebem clientes pelo Google, mas o site atual tem lentidão/atrito no celular, o que faz muita gente desistir antes de chamar no Zap.\n\n"
+            # Tipo B: Site legado / lento
+            msg_curiosidade = (
+                f"Oi, tudo bem? Vi o trabalho impecável de vocês no *{nome}*{bairro_str} no Google — nota {nota} com {reviews} avaliações, parabéns!\n\n"
+                f"Vi que vocês recebem clientes pelo Google, mas o site atual tem lentidão e atrito no celular, o que faz muita gente desistir antes de chamar no Zap.\n\n"
                 f"Montei uma prévia moderna de 1 minuto mostrando como ficaria o atendimento de vocês em alta conversão. Posso te mandar o link aqui?"
             )
+            msg_concorrencia = (
+                f"Oi, tudo bem? Estava analisando a presença no Google do *{nome}* em {bairro} e a reputação de vocês é fantástica ({nota} ⭐).\n\n"
+                f"Porém, notei que o site atual demora para carregar no celular e dificulta o agendamento rápido, fazendo potenciais clientes migrarem para outros estabelecimentos da região.\n\n"
+                f"Desenhei uma versão leve e otimizada de 1 minuto focada em cliques diretos para o WhatsApp. Posso te mandar o link aqui?"
+            )
+            msg_autoridade = (
+                f"Oi, tudo bem? Acompanho a excelência do *{nome}*{bairro_str} e o padrão do espaço de vocês é referência em {bairro}.\n\n"
+                f"Para uma clínica com a história e qualidade de vocês, ter um site moderno e fluido no celular transmite muito mais sofisticação e valor percebido na hora de agendar.\n\n"
+                f"Preparei uma proposta visual elegante pensada para o público exigente de {bairro}. Posso te mandar o link de 1 min aqui?"
+            )
 
-        follow_up = (
-            f"Opa, tudo bem? Imagino que a rotina aí no {nome} esteja super corrida! "
-            f"Conseguiu dar uma olhada na mensagem anterior sobre a prévia de 1 min? Um abraço!"
+        msg_follow_up = (
+            f"Opa {primeiro_nome}, tudo bem? Imagino que a rotina aí no {nome} esteja super corrida!\n\n"
+            f"Conseguiu dar uma olhada na mensagem anterior sobre a prévia de 1 min para os agendamentos de vocês? Um abraço!"
         )
 
-        return f"{msg_principal}\n\n---\n⏰ *Follow-up (24h se não responder):*\n{follow_up}"
+        return {
+            "curiosidade": {
+                "titulo": "🔥 Demonstração Pronta (Alta Curiosidade)",
+                "mensagem": msg_curiosidade
+            },
+            "concorrencia_perda": {
+                "titulo": "📉 Fuga de Clientes (Alerta de Vendas)",
+                "mensagem": msg_concorrencia
+            },
+            "autoridade_luxo": {
+                "titulo": "💎 Posicionamento & Tradição",
+                "mensagem": msg_autoridade
+            },
+            "follow_up": {
+                "titulo": "⏳ Follow-up (Retomada)",
+                "mensagem": msg_follow_up
+            }
+        }
+
+    def _gerar_pitch_fallback(self, lead: dict) -> str:
+        """Script de vendas curto e conversacional para WhatsApp (fallback sem IA)."""
+        copies = self._gerar_copies_fallback(lead)
+        msg_principal = copies.get("curiosidade", {}).get("mensagem", "")
+        follow_up = copies.get("follow_up", {}).get("mensagem", "")
+        if follow_up:
+            return f"{msg_principal}\n\n---\n⏰ *Follow-up (24h se não responder):*\n{follow_up}"
+        return msg_principal
 
     def _gerar_landing_fallback(self, lead: dict) -> str:
         """Gera uma Landing Page HTML5 de luxo completa com Tailwind CSS como fallback ultra-rápido e robusto."""
